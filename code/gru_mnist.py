@@ -54,11 +54,36 @@ class GRUCell(nn.Module):
         
         return r_t
 
+class MinGRUCell(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        self.hidden_size = hidden_size
+
+        # h_hat_t gate
+        self.lin_h_hat = nn.Linear(input_size, hidden_size) 
+
+        # z_t update gate
+        self.lin_z = nn.Linear(input_size, hidden_size)
+    
+        # Randomise parameters
+        scaled_mag = 1/math.sqrt(hidden_size)
+        for name, param in self.named_parameters():
+            nn.init.uniform_(param, a=-(scaled_mag), b=(scaled_mag))
+        
+        # Activation/transfer functions
+        self.Sigmoid = nn.Sigmoid()
+    
+    def forward(self, x, h_t_prev):
+        z_t = self.Sigmoid(self.lin_z(x))
+        h_hat_t = self.lin_h_hat(x)
+        h_t = (1 - z_t) * h_t_prev + z_t * h_hat_t
+        return h_t
+
 class SequentialGRU(nn.Module):
-    def __init__(self, input_size, hidden_size, num_classes):
+    def __init__(self, input_size, hidden_size, num_classes, cell=GRUCell):
         super().__init__()
         # GRU cell to run iteratively through time
-        self.grucell = GRUCell(input_size, hidden_size).to(device)
+        self.grucell = cell(input_size, hidden_size).to(device)
         # Mapping final internal cell values to class decisions 
         self.linear = nn.Linear(hidden_size, num_classes)
     
@@ -147,7 +172,7 @@ def train(num_epochs, model, loss_func, optimizer, train_loader, test_loader):
 
 # ---- Testing model
 if __name__ == "__main__":
-    model = SequentialGRU(INPUT_SIZE, HIDDEN_SIZE, NUM_CLASSES).to(device)
+    model = SequentialGRU(INPUT_SIZE, HIDDEN_SIZE, NUM_CLASSES, MinGRUCell).to(device)
     loss_func = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     train(NUM_EPOCHS, model, loss_func, optimizer, train_loader, test_loader)

@@ -1,0 +1,43 @@
+Epoch [1/6], Step [100/600], Loss: 1.1965
+Epoch [1/6], Step [200/600], Loss: 0.7573
+Epoch [1/6], Step [300/600], Loss: 0.8114
+Epoch [1/6], Step [400/600], Loss: 0.4422
+Epoch [1/6], Step [500/600], Loss: 0.4254
+Epoch [1/6], Step [600/600], Loss: 0.5158
+Epoch [1/6], Validation Loss: 0.4615835231542587
+Epoch [2/6], Step [100/600], Loss: 0.3329
+Epoch [2/6], Step [200/600], Loss: 0.3749
+Epoch [2/6], Step [300/600], Loss: 0.5729
+Epoch [2/6], Step [400/600], Loss: 0.4754
+Epoch [2/6], Step [500/600], Loss: 0.2762
+Epoch [2/6], Step [600/600], Loss: 0.2888
+Epoch [2/6], Validation Loss: 0.3472698986530304
+Epoch [3/6], Step [100/600], Loss: 0.2516
+Epoch [3/6], Step [200/600], Loss: 0.3801
+Epoch [3/6], Step [300/600], Loss: 0.3492
+Epoch [3/6], Step [400/600], Loss: 0.3653
+Epoch [3/6], Step [500/600], Loss: 0.3200
+Epoch [3/6], Step [600/600], Loss: 0.2742
+Epoch [3/6], Validation Loss: 0.32138261884450914
+Epoch [4/6], Step [100/600], Loss: 0.3186
+Epoch [4/6], Step [200/600], Loss: 0.2781
+Epoch [4/6], Step [300/600], Loss: 0.3212
+Epoch [4/6], Step [400/600], Loss: 0.1948
+Epoch [4/6], Step [500/600], Loss: 0.2898
+Epoch [4/6], Step [600/600], Loss: 0.2767
+Epoch [4/6], Validation Loss: 0.3081278710067272
+Epoch [5/6], Step [100/600], Loss: 0.4374
+Epoch [5/6], Step [200/600], Loss: 0.1569
+Epoch [5/6], Step [300/600], Loss: 0.3141
+Epoch [5/6], Step [400/600], Loss: 0.1869
+Epoch [5/6], Step [500/600], Loss: 0.2676
+Epoch [5/6], Step [600/600], Loss: 0.3616
+Epoch [5/6], Validation Loss: 0.2901250995695591
+Epoch [6/6], Step [100/600], Loss: 0.3780
+Epoch [6/6], Step [200/600], Loss: 0.2036
+Epoch [6/6], Step [300/600], Loss: 0.2932
+Epoch [6/6], Step [400/600], Loss: 0.1718
+Epoch [6/6], Step [500/600], Loss: 0.3312
+Epoch [6/6], Step [600/600], Loss: 0.1831
+Epoch [6/6], Validation Loss: 0.2704189518094063
+Test Accuracy of the model on the 10000 test images: 91.49 %
