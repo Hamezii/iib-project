@@ -26,3 +26,5 @@ def get_test_data():
         transform = ToTensor(),
         download = True
     )
+
+datasets.MNIST

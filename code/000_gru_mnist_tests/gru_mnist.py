@@ -83,7 +83,7 @@ class SequentialGRU(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes, cell=GRUCell):
         super().__init__()
         # GRU cell to run iteratively through time
-        self.grucell = cell(input_size, hidden_size).to(device)
+        self.grucell = cell(input_size, hidden_size)
         # Mapping final internal cell values to class decisions 
         self.linear = nn.Linear(hidden_size, num_classes)
     
