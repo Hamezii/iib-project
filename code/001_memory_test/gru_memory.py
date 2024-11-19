@@ -19,12 +19,14 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 NUM_CLASSES = 10
 INPUT_SIZE = NUM_CLASSES + 1
 HIDDEN_SIZE = 32
+
+LEARNING_STEPS = 2500
 LEARNING_RATE = 0.01
-NUM_EPOCHS = 6
 
 
 # ---- Task data
-SEQ_LENGTH = 8
+SEQ_LENGTH = 12
+INPUT_STEP_T = 1 # TODO Implement
 BATCH_SIZE = 64
 
 class RandomSequenceGenerator:
@@ -145,10 +147,11 @@ class MemoryModel(nn.Module):
 
         # Iteratively modelling
         for i in range(SEQ_LENGTH * 2):
-            # Could experiment with replacing zero_input with y[:, i - SEQ_LENGTH, :]
+            # Could experiment with replacing zero_input with prev:
+            #prev = torch.cat((y[:, i - SEQ_LENGTH - 1, :], torch.zeros((x.shape[0], 1)).to(device)), dim=1).to(device)
             x_slice = x[:, i, :] if i < x.shape[1] else zero_input
             h_t = self.grucell(x_slice, h_t)
-            if i >= SEQ_LENGTH: # SEQ_LENGTH + 1 - 1
+            if i >= SEQ_LENGTH:
                 y[:, i - SEQ_LENGTH, :] = self.out_layer(h_t)
 
         return y
@@ -161,7 +164,7 @@ loss_func = nn.CrossEntropyLoss(ignore_index=INPUT_SIZE-1)
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 i = 0
-step_total = 1500
+
 for (x, seq_indices) in loader:
     assert x.shape == (BATCH_SIZE, SEQ_LENGTH + 1, NUM_CLASSES+1)
     assert seq_indices.shape == (BATCH_SIZE, SEQ_LENGTH)
@@ -176,10 +179,10 @@ for (x, seq_indices) in loader:
 
     if (i+1) % 50 == 0:
         print ('Step [{}/{}], Loss: {:.4f}' 
-                .format(i + 1, step_total, loss.item()))
+                .format(i + 1, LEARNING_STEPS, loss.item()))
 
     i += 1
-    if i == step_total:
+    if i == LEARNING_STEPS:
         break
 
 # Testing
