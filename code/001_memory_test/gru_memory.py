@@ -1,4 +1,7 @@
-"""Simple GRU implementation on MNIST dataset"""
+"""Simple and min GRU models trained on a sequence memory task"""
+# noise std = 0.05, seq length = 8, hidden size = 32, classes = 10:
+# Test accuracy of the model 4000 sequences: 98.984375 %
+
 
 import math
 
@@ -20,38 +23,44 @@ NUM_CLASSES = 10
 INPUT_SIZE = NUM_CLASSES + 1
 HIDDEN_SIZE = 32
 
-LEARNING_STEPS = 2500
-LEARNING_RATE = 0.01
+LEARNING_STEPS = 3000
+LEARNING_RATE = 0.04
 
 
 # ---- Task data
-SEQ_LENGTH = 12
-INPUT_STEP_T = 1 # TODO Implement
 BATCH_SIZE = 64
+SEQ_LENGTH = 8
+INPUT_STEP_T = 1  # TODO Implement
+NOISE_STD = 0.05
+
 
 class RandomSequenceGenerator:
     """Generates random input sequences"""
+
     def __next__(self):
         # Random integers from zero to NUM_CLASSES - 1, length SEQ_LENGTH
         seq_indices = torch.randint(0, NUM_CLASSES, (SEQ_LENGTH,)).to(device)
         # Append a final number to the end of the sequence, the "go signal"
-        go_signal = torch.tensor((NUM_CLASSES, )).to(device) # comma is here to stop it being 0-dimensional and allow it to concat
+        # comma is here to stop it being 0-dimensional and allow it to concat
+        go_signal = torch.tensor((NUM_CLASSES, )).to(device)
         x_indices = torch.cat((seq_indices, go_signal)).to(device)
 
         # Getting one-hot sequence from index tensor
-        #pylint: disable=E1102
+        # pylint: disable=E1102
         x = F.one_hot(x_indices, num_classes=NUM_CLASSES+1).float().to(device)
 
         assert seq_indices.shape == (SEQ_LENGTH,)
         assert x.shape == (SEQ_LENGTH + 1, NUM_CLASSES+1)
         return x, seq_indices
 
-#pylint: disable=W0223
+# pylint: disable=W0223
+
+
 class SequenceDataset(IterableDataset):
     """This is passed to DataLoader to create minibatches"""
+
     def __iter__(self):
         return RandomSequenceGenerator()
-
 
 
 # ---- Models
@@ -62,8 +71,8 @@ class GRUCell(nn.Module):
 
         # Reset gate
         self.W_r = torch.nn.Parameter(torch.zeros(hidden_size, hidden_size))
-        self.P_r = torch.nn.Parameter(torch.zeros(hidden_size, input_size))           
-        self.b_r = torch.nn.Parameter(torch.zeros(hidden_size))   
+        self.P_r = torch.nn.Parameter(torch.zeros(hidden_size, input_size))
+        self.b_r = torch.nn.Parameter(torch.zeros(hidden_size))
 
         # Update gate z_t
         # W_z and P_z are set to 0 and not trained
@@ -71,16 +80,16 @@ class GRUCell(nn.Module):
 
         # Internal state
         # r_t is passed in forward method
-    
+
         # Randomise parameters
         scaled_mag = 1/math.sqrt(hidden_size)
         for _, param in self.named_parameters():
             nn.init.uniform_(param, a=-(scaled_mag), b=(scaled_mag))
-        
+
         # Activation/transfer functions
         self.Sigmoid = nn.Sigmoid()
         self.Tanh = nn.Tanh()
-    
+
     def forward(self, x, r_t_prev):
         self.z_t = self.Sigmoid(self.b_z)
         # print("x.shape:", x.shape)
@@ -88,9 +97,12 @@ class GRUCell(nn.Module):
         # print("self.z_t.shape:", self.z_t.shape)
         # print("self.W_r.shape:", self.W_r.shape)
         # print("self.P_r.shape:", self.P_r.shape)
-        r_t = (1 - self.z_t) * r_t_prev + self.z_t * self.Tanh((self.W_r @ r_t_prev.T).T + (self.P_r @ x.T).T + self.b_r)
-        
+        r_t = (1 - self.z_t) * r_t_prev + self.z_t * \
+            self.Tanh((self.W_r @ r_t_prev.T).T +
+                      (self.P_r @ x.T).T + self.b_r)
+
         return r_t
+
 
 class MinGRUCell(nn.Module):
     def __init__(self, input_size, hidden_size):
@@ -124,7 +136,7 @@ class MemoryModel(nn.Module):
         super().__init__()
         # GRU cell to run iteratively through time
         self.grucell = cell(INPUT_SIZE, HIDDEN_SIZE)
-        # Mapping final internal cell values to class decisions 
+        # Mapping final internal cell values to class decisions
         # self.C = torch.nn.Parameter(torch.zeros(NUM_CLASSES, HIDDEN_SIZE))
         # nn.init.xavier_uniform_(self.C)
         self.out_layer = nn.Linear(HIDDEN_SIZE, NUM_CLASSES)
@@ -134,7 +146,6 @@ class MemoryModel(nn.Module):
     def forward(self, x):
         """Runs the GRU cell once for each step."""
         # assert x.shape == (BATCH_SIZE, SEQ_LENGTH+1, NUM_CLASSES+1)
-
 
         # Initialise hidden state
         h_t = torch.zeros(x.shape[0], HIDDEN_SIZE).to(device)
@@ -148,9 +159,11 @@ class MemoryModel(nn.Module):
         # Iteratively modelling
         for i in range(SEQ_LENGTH * 2):
             # Could experiment with replacing zero_input with prev:
-            #prev = torch.cat((y[:, i - SEQ_LENGTH - 1, :], torch.zeros((x.shape[0], 1)).to(device)), dim=1).to(device)
+            # prev = torch.cat((y[:, i - SEQ_LENGTH - 1, :], torch.zeros((x.shape[0], 1)).to(device)), dim=1).to(device)
             x_slice = x[:, i, :] if i < x.shape[1] else zero_input
-            h_t = self.grucell(x_slice, h_t)
+            # Noise
+            noise = NOISE_STD * torch.randn(x_slice.shape).to(device)
+            h_t = self.grucell(x_slice+noise, h_t)
             if i >= SEQ_LENGTH:
                 y[:, i - SEQ_LENGTH, :] = self.out_layer(h_t)
 
@@ -162,108 +175,60 @@ loader = DataLoader(dataset, batch_size=BATCH_SIZE)
 model = MemoryModel(GRUCell).to(device)
 loss_func = nn.CrossEntropyLoss(ignore_index=INPUT_SIZE-1)
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+    optimizer, mode='min', factor=0.25, patience=2)
+LR_UPDATES = 50
 i = 0
-
+avg_loss = 0
 for (x, seq_indices) in loader:
     assert x.shape == (BATCH_SIZE, SEQ_LENGTH + 1, NUM_CLASSES+1)
     assert seq_indices.shape == (BATCH_SIZE, SEQ_LENGTH)
 
     model.train()
     outputs = model(x)
+    assert outputs.shape == (BATCH_SIZE, SEQ_LENGTH, NUM_CLASSES)
     loss = loss_func(outputs.transpose(1, 2), seq_indices)
 
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
-
-    if (i+1) % 50 == 0:
-        print ('Step [{}/{}], Loss: {:.4f}' 
-                .format(i + 1, LEARNING_STEPS, loss.item()))
-
+    avg_loss += loss.item()
+    if (i+1) % LR_UPDATES == 0:
+        avg_loss /= LR_UPDATES
+        print('Step [{}/{}], Loss: {:.4f}'
+              .format(i + 1, LEARNING_STEPS, avg_loss))
+        scheduler.step(avg_loss)
+    optimizer.state.update()
     i += 1
     if i == LEARNING_STEPS:
         break
 
-# Testing
+# "Validation"
+# model.eval()
+# with torch.no_grad():
+#     for i in range(10):
+#         (x, seq_indices) = next(iter(dataset))
+#         x = x.unsqueeze(0) # i.e. 1 batch size
+#         print(f"Input sequence: {seq_indices}")
+#         outputs = model(x)
+#         #outputs = nn.LogSoftmax(dim=1)(model(x))
+#         print(f"Output sequence: {outputs}")
+
+# Testing model
 model.eval()
 with torch.no_grad():
-    for i in range(10):
+    correct = 0
+    n_tests = 4000
+    print_step = 100
+    for i in range(n_tests):
         (x, seq_indices) = next(iter(dataset))
-        x = x.unsqueeze(0)
-        print(f"Input sequence: {seq_indices}")
-        outputs = model(x)
-        print(f"Output sequence: {outputs}")
+        x = x.unsqueeze(0)  # i.e. 1 batch size
+        outputs = model(x).transpose(1, 2)
+        _, predicted = torch.max(outputs.data, 1)
+        correct = correct + (predicted == seq_indices).sum().item()
+        if (i+1) % print_step == 0:
+            print(f"Test {i+1}:\n  Input sequence: {seq_indices.tolist()}")
+            print(f"  Output sequence: {predicted.squeeze().tolist()}")
 
-
-
-# For learning, use CrossEntropyLoss with ignore_index (look at nn.Loss autocomplete for other methods)
-# nn.CrossEntropyLoss(ignore_index=NUM_CLASSES)
-
-
-# # ---- Training
-# def train(num_epochs, model, loss_func, optimizer, train_loader, test_loader):
-#     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=2)
-
-#     step_total = len(train_loader)
-
-#     for epoch in range(num_epochs):
-#         # Training
-#         model.train()
-#         for i, (images, labels) in enumerate(train_loader):
-
-#             images = images.squeeze(1).to(device)
-#             # print("images.shape:", images.shape)
-#             labels = labels.to(device)
-
-#             # Forward pass
-#             outputs = model(images)
-#             loss = loss_func(outputs, labels)
-
-#             # BPTT and optimize
-#             optimizer.zero_grad()
-#             loss.backward()
-#             optimizer.step()
-
-#             if (i+1) % 100 == 0:
-#                 print ('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}' 
-#                        .format(epoch + 1, num_epochs, i + 1, step_total, loss.item()))
-
-#         # Validation step
-#         model.eval()
-#         val_loss = 0.0
-#         with torch.no_grad():
-#             for images, labels in test_loader:
-#                 images = images.squeeze(1).to(device)
-#                 labels = labels.to(device)
-#                 outputs = model(images)
-#                 val_loss += loss_func(outputs, labels).item()
-
-#         val_loss /= len(test_loader)
-#         print(f'Epoch [{epoch+1}/{NUM_EPOCHS}], Validation Loss: {val_loss}')
-
-#         # Step scheduler (modifying learning rate) based on validation loss
-#         scheduler.step(val_loss)
-
-
-
-# # ---- Testing model
-# if __name__ == "__main__":
-#     model = SequentialGRU(INPUT_SIZE, HIDDEN_SIZE, NUM_CLASSES, MinGRUCell).to(device)
-#     loss_func = nn.CrossEntropyLoss()
-#     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-#     train(NUM_EPOCHS, model, loss_func, optimizer, train_loader, test_loader)
-
-#     # Testing model
-#     model.eval()
-#     with torch.no_grad():
-#         correct = 0
-#         total = 0
-#         for images, labels in test_loader:
-#             images = images.squeeze(1).to(device)
-#             labels = labels.to(device)
-#             outputs = model(images)
-#             _, predicted = torch.max(outputs.data, 1)
-#             total = total + labels.size(0)
-#             correct = correct + (predicted == labels).sum().item()
-#     print('Test Accuracy of the model on the 10000 test images: {} %'.format(100 * correct / total))
+    accuracy = 100 * correct / SEQ_LENGTH / n_tests
+    print(f"Test accuracy of the model on {n_tests} sequences: {accuracy} %")
