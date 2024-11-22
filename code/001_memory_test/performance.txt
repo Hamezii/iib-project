@@ -1,0 +1,18 @@
+noise std = 0.05, seq length = 8, hidden size = 32, classes = 10:
+Test accuracy of the model 4000 sequences: 98.984375 %
+
+Same with minGRU:
+Test accuracy of the model on 4000 sequences: 40.528125 %
+Examples:
+Test 3700:
+  Input sequence: [7, 9, 8, 4, 8, 8, 3, 8]
+  Output sequence: [7, 8, 8, 8, 8, 8, 8, 8]
+Test 3800:
+  Input sequence: [3, 7, 0, 8, 4, 0, 4, 1]
+  Output sequence: [3, 3, 8, 8, 4, 4, 4, 1]
+Test 3900:
+  Input sequence: [4, 9, 4, 1, 3, 0, 1, 7]
+  Output sequence: [4, 4, 4, 4, 1, 7, 7, 7]
+Test 4000:
+  Input sequence: [5, 2, 2, 9, 2, 9, 8, 4]
+  Output sequence: [5, 2, 9, 9, 9, 9, 9, 9]

@@ -1,7 +1,4 @@
 """Simple and min GRU models trained on a sequence memory task"""
-# noise std = 0.05, seq length = 8, hidden size = 32, classes = 10:
-# Test accuracy of the model 4000 sequences: 98.984375 %
-
 
 import math
 
@@ -172,7 +169,7 @@ class MemoryModel(nn.Module):
 
 dataset = SequenceDataset()
 loader = DataLoader(dataset, batch_size=BATCH_SIZE)
-model = MemoryModel(GRUCell).to(device)
+model = MemoryModel(MinGRUCell).to(device)
 loss_func = nn.CrossEntropyLoss(ignore_index=INPUT_SIZE-1)
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
