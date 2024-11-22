@@ -1,7 +1,4 @@
 """Simple and min GRU models trained on a sequence memory task"""
-# noise std = 0.05, seq length = 8, hidden size = 32, classes = 10:
-# Test accuracy of the model 4000 sequences: 98.984375 %
-
 
 import math
 
