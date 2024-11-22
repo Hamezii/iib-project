@@ -169,7 +169,7 @@ class MemoryModel(nn.Module):
 
 dataset = SequenceDataset()
 loader = DataLoader(dataset, batch_size=BATCH_SIZE)
-model = MemoryModel(GRUCell).to(device)
+model = MemoryModel(MinGRUCell).to(device)
 loss_func = nn.CrossEntropyLoss(ignore_index=INPUT_SIZE-1)
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
