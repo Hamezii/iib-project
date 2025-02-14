@@ -40,7 +40,7 @@ class STPModel(nn.Module):
 
     def compute_R(self, h):
         """Compute firing rate R(h) = alpha * ln(1 + exp(h / alpha))"""
-        return self.alpha * F.softplus(input=h, beta=1/self.alpha)
+        return F.softplus(input=h, beta=1/self.alpha)
 
     def forward(self, state, I_e):
         """
