@@ -36,7 +36,8 @@ class STPModel(nn.Module):
         self.register_buffer('J_IE', torch.tensor(J_IE))
 
         # Trainable parameters
-        self.J = nn.Parameter(torch.randn(N, N) * 0.1)
+        # raw_J is put through softplus to ensure non-negativity
+        self.raw_J = nn.Parameter(torch.randn(N, N) * 0.1)
 
     def compute_R(self, h):
         """Compute firing rate R(h) = alpha * ln(1 + exp(h / alpha))"""
@@ -54,15 +55,18 @@ class STPModel(nn.Module):
             u_x: Synaptic efficacies of size (batch_size x N)
         
         """
-        # TODO Consider flipping dimensions of state variables?
+        # TODO Consider flipping dimensions of state variables? Currently (batch_size, N)
         h, u, x, h_I = state
 
         R = self.compute_R(h)
         R_I = self.compute_R(h_I)
 
+        # To keep J non-negative
+        J_eff = F.softplus(self.raw_J)
+
         # Update synaptic currents (Equation 4)
         # Note: J_ij is the synaptic weight from neuron j to neuron i
-        synaptic_inputs = torch.matmul(self.J, (u * x * R).T).T
+        synaptic_inputs = torch.matmul(J_eff, (u * x * R).T).T
         # print(h.shape)
         # print(synaptic_inputs.shape)
         # print(R_I.shape)
@@ -106,7 +110,7 @@ def initialize_eta(N, P, f): # Unused currently
     vector of zeros and ones.
 
     Parameters:
-    N: Number of excitatory neurons.
+    N: Number of neurons.
     P: Number of memory patterns.
     f: Sparsity factor of the memories.
 
@@ -146,102 +150,35 @@ def generate_xor_data(input_strength):
 
 if __name__ == "__main__":
     # Hyperparameters
-    N = 2
-    dt = 1e-4
-    learning_rate = 3e-2
-    seq_len = 100
-    batch_size = 4
-    input_strength = 225
-
-    model = STPModel(N=N, dt=dt).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-
-    # Initial state (h, u, x, h_I)
-    state = (torch.zeros(batch_size, N, requires_grad=True).to(device),
-             torch.full((batch_size, N), model.U.item(), requires_grad=True).to(device),
-             torch.ones(batch_size, N, requires_grad=True).to(device),
-             torch.zeros(batch_size, 1, requires_grad=True).to(device))
-
-    # XOR dataset
-    X, Y = generate_xor_data(input_strength)
-    X, Y = X.to(device), Y.to(device)
-
-    # Training loop
-    losses = []
-    for epoch in range(1000):
-        total_loss = 0
-
-        # Forward pass
-        hidden = tuple(s.clone() for s in state)
-        for t in range(seq_len):
-            hidden, u_x = model(hidden, X)
-
-            # Check for NaNs in the forward pass
-            if torch.isnan(u_x).any():
-                print(f"NaN detected in u_x at time step {t}")
-                break
-
-            # Loss
-            loss = F.binary_cross_entropy_with_logits(u_x[:, 0], Y)
-            total_loss += loss
-            loss.backward(retain_graph=True)
-
-            # Gradient clipping
-            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-
-        optimizer.step()
-        optimizer.zero_grad()
-        losses.append(total_loss.item() / seq_len)
-        print(f"Epoch {epoch}, Loss: {losses[-1]:.4f}")
-
-        # Check for NaNs in the loss
-        if torch.isnan(total_loss):
-            print(f"NaN detected in total_loss at epoch {epoch}")
-            break
-
-    # Plot the loss
-    plt.plot(losses)
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.title('Training Loss')
-    plt.show()
-
-    # Hyperparameters
-    # N = 10#100
+    # N = 2
     # dt = 1e-4
-    # learning_rate = 1e-2#1e-4
-    # seq_len = 100 # Number of forward steps
-    # batch_size = 1#4
-    # input_strength = 225.0
+    # learning_rate = 10#3e-1
+    # seq_len = 100
+    # batch_size = 4
+    # input_strength = 225
 
-    # with device: # Putting tensors onto cuda device if able
-    #     # Model
-    #     model = STPModel(N=N, dt=dt)
+    # model = STPModel(N=N, dt=dt).to(device)
+    # optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-    #     # Learning
-    #     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-        
-    #     # Initial state (h, u, x, h_I)
-    #     state = (torch.zeros(batch_size, N, requires_grad=True),
-    #             torch.full((batch_size, N), model.U.item(), requires_grad=True),
-    #             torch.ones(batch_size, N, requires_grad=True),
-    #             torch.zeros(batch_size, 1, requires_grad=True))
-    
-    #     # Input stimulating the first 5 neurons for 30ms
-    #     I_e = torch.zeros(seq_len, batch_size, N)
-    #     I_e[:30, :, :5] = input_strength
+    # # Initial state (h, u, x, h_I)
+    # state = (torch.zeros(batch_size, N, requires_grad=True).to(device),
+    #          torch.full((batch_size, N), model.U.item(), requires_grad=True).to(device),
+    #          torch.ones(batch_size, N, requires_grad=True).to(device),
+    #          torch.zeros(batch_size, 1, requires_grad=True).to(device))
+
+    # # XOR dataset
+    # X, Y = generate_xor_data(input_strength)
+    # X, Y = X.to(device), Y.to(device)
 
     # # Training loop
     # losses = []
-    # for epoch in range(100):
+    # for epoch in range(1000):
     #     total_loss = 0
 
     #     # Forward pass
-    #     with device:
-    #         hidden = tuple(s.clone() for s in state)
-
-    #     for t in tqdm(range(seq_len)):
-    #         hidden, u_x = model(hidden, I_e[t])
+    #     hidden = tuple(s.clone() for s in state)
+    #     for t in range(seq_len):
+    #         hidden, u_x = model(hidden, X)
 
     #         # Check for NaNs in the forward pass
     #         if torch.isnan(u_x).any():
@@ -249,19 +186,12 @@ if __name__ == "__main__":
     #             break
 
     #         # Loss
-    #         # TODO - Dummy loss function, looks for larger efficacy 
-    #         # in stimulated neurons and low in others
-    #         target = torch.zeros_like(u_x)
-    #         target[:, :5] = 0.8
-    #         loss = torch.mean((u_x - target)**2) # mean squared error
+    #         loss = F.binary_cross_entropy_with_logits(u_x[:, 0], Y)
     #         total_loss += loss
     #         loss.backward(retain_graph=True)
-            
+
     #         # Gradient clipping
     #         # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-
-    #     # Maybe loss.backward should be outside the loop?
-    #     # total_loss.backward(retain_graph=True)
 
     #     optimizer.step()
     #     optimizer.zero_grad()
@@ -272,3 +202,84 @@ if __name__ == "__main__":
     #     if torch.isnan(total_loss):
     #         print(f"NaN detected in total_loss at epoch {epoch}")
     #         break
+
+    # # Plot the loss
+    # plt.plot(losses)
+    # plt.xlabel('Epoch')
+    # plt.ylabel('Loss')
+    # plt.title('Training Loss')
+    # plt.show()
+
+    # Hyperparameters
+    N = 10#100
+    dt = 1e-4
+    learning_rate = 1#1e-4
+    seq_len = 100 # Number of forward steps
+    batch_size = 1#4
+    input_strength = 225.0
+
+    with device: # Putting tensors onto cuda device if able
+        # Model
+        model = STPModel(N=N, dt=dt)
+
+        # Learning
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+        
+        # Initial state (h, u, x, h_I)
+        state = (torch.zeros(batch_size, N, requires_grad=True),
+                torch.full((batch_size, N), model.U.item(), requires_grad=True),
+                torch.ones(batch_size, N, requires_grad=True),
+                torch.zeros(batch_size, 1, requires_grad=True))
+    
+        # Input stimulating the first 5 neurons for 30ms
+        I_e = torch.zeros(seq_len, batch_size, N)
+        I_e[:30, :, :5] = input_strength
+
+        eta = torch.tensor(
+            [[1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 1, 1, 1, 1, 1]])
+        J_EE = 8
+        J_initial = compute_connection_matrix(eta, J_EE)
+        model.raw_J.data = torch.log(J_initial + 1e-3) F.inverse_softplus(J_initial)
+
+    # Training loop
+    losses = []
+    for epoch in range(100):
+        total_loss = 0
+
+        # Forward pass
+        with device:
+            hidden = tuple(s.clone() for s in state)
+
+        for t in tqdm(range(seq_len)):
+            hidden, u_x = model(hidden, I_e[t])
+
+            # Check for NaNs in the forward pass
+            if torch.isnan(u_x).any():
+                print(f"NaN detected in u_x at time step {t}")
+                break
+
+            # Loss
+            # TODO - Dummy loss function, looks for larger efficacy 
+            # in stimulated neurons and low in others
+            target = torch.zeros_like(u_x)
+            target[:, :5] = 0.8
+            loss = torch.mean((u_x - target)**2) # mean squared error
+            total_loss += loss
+            loss.backward(retain_graph=True)
+            
+            # Gradient clipping
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
+        # Maybe loss.backward should be outside the loop?
+        # total_loss.backward(retain_graph=True)
+
+        optimizer.step()
+        optimizer.zero_grad()
+        losses.append(total_loss.item() / seq_len)
+        print(f"Epoch {epoch}, Loss: {losses[-1]:.4f}")
+
+        # Check for NaNs in the loss
+        if torch.isnan(total_loss):
+            print(f"NaN detected in total_loss at epoch {epoch}")
+            break
