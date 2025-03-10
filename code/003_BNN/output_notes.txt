@@ -1,0 +1,2 @@
+000: 100ms, XOR signal always on
+001: 50ms XOR signal, measure h after 600ms
