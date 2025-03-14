@@ -39,15 +39,6 @@ class STPModel(nn.Module):
         # raw_J is put through softplus to ensure non-negativity
         self.raw_J = nn.Parameter(torch.randn(N, N) * 0.1)
 
-        # Input and output layers with Gaussian weights
-        self.input_layer = nn.Linear(2, N)
-        nn.init.normal_(self.input_layer.weight, mean=0.0, std=0.1)
-        nn.init.constant_(self.input_layer.bias, 0.0)
-
-        self.output_layer = nn.Linear(N, 1)
-        nn.init.normal_(self.output_layer.weight, mean=0.0, std=0.1)
-        nn.init.constant_(self.output_layer.bias, 0.0)
-
     def compute_R(self, h):
         """Compute firing rate R(h) = alpha * ln(1 + exp(h / alpha))"""
         return F.softplus(input=h, beta=1/self.alpha)
