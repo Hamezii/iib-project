@@ -115,7 +115,7 @@ class STPWrapper(nn.Module):
     """
     Wrapper class for STPModel to handle input and output layers.
     """
-    def __init__(self, N=100, dt=1e-4, **stp_kwargs):
+    def __init__(self, N=100, dt=1e-4, input_duration=50, **stp_kwargs):
         super().__init__()
         self.input_layer = nn.Linear(2, N)
         nn.init.normal_(self.input_layer.weight, mean=0.0, std=0.1)
@@ -129,10 +129,13 @@ class STPWrapper(nn.Module):
         
         self.N = N
         self.dt = dt
+        self.input_duration = input_duration
 
     def forward(self, x, seq_len):
         batch_size = x.size(0)
+
         I_e = self.input_layer(x)  # Transform input to STP dimensions
+        zero_input = torch.zeros_like(I_e, device=x.device)
         
         # Initialize STP state variables
         h = torch.zeros(batch_size, self.N, requires_grad=True, device=x.device)
@@ -144,7 +147,11 @@ class STPWrapper(nn.Module):
 
         # Run through STP dynamics
         for t in range(seq_len):
-            state, u_x = self.stp_model(state, I_e)
+            if t < self.input_duration:
+                input_signal = I_e
+            else:
+                input_signal = zero_input
+            state, u_x = self.stp_model(state, input_signal)
         
         # Generate output from final state
         final_h = state[0]
@@ -203,7 +210,7 @@ if __name__ == "__main__":
     N = 100
     dt = 1e-4
     learning_rate = 0.001
-    seq_len = 100
+    seq_len = 600
     num_epochs = 1000
     input_strength = 225 # TEMP
 
