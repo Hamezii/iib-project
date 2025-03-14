@@ -15,7 +15,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # device = torch.device('cpu')
 # print("Using device:", device)
 
-TEMP_TEST = True
+TEMP_TEST = False
 TEST_PRESQUEEZE = True # Doesn't seem to fix
 
 # ---- Model
@@ -86,6 +86,7 @@ class STPModel(nn.Module):
         # Update depression variables (Equation 6)
         dx = (1 - x)/self.tau_d - u * x * R
         # Update inhibitory population (Equation 7)
+        # TODO consider scaling this
         dh_I = (-h_I + self.J_IE * torch.sum(R, dim=1, keepdim=True))/self.tau
 
         # Check for NaNs in intermediate variables
@@ -187,6 +188,8 @@ class PaperSTPWrapper(STPWrapper):
         """Set input/output weights to map to/from clusters"""
         # Note that nn.Linear weights follow (output, input) convention
         P, N = self.eta.shape
+        # TODO compare this code to eta and output is eta/ int(N*f)
+        # TODO see if matrices are the same
         # Input
         nn.init.zeros_(self.input_layer.weight)
         for p in range(P):
@@ -200,6 +203,7 @@ class PaperSTPWrapper(STPWrapper):
 # ---- Initialization functions
 def initialize_eta(P=16, N=100, f=0.05):
     """Create clustered memory patterns (P x N)"""
+
     neurons_per_cluster = int(N * f)
     eta = torch.zeros(P, N)
     for p in range(P):
@@ -210,6 +214,7 @@ def initialize_eta(P=16, N=100, f=0.05):
 
 def compute_connection_matrix(eta, J_EE=8, f=0.05):
     """J_ij = J_EE if i,j share a cluster, else f*J_EE"""
+    # TODO J is eta.T * eta: check this is the case
     J = torch.ones(eta.shape[1], eta.shape[1]) * f * J_EE  # Baseline: weak cross-cluster
     cluster_membership = torch.argmax(eta, dim=0)  # (N,) cluster index per neuron
 
@@ -258,6 +263,8 @@ def simulate_paper():
     # plt.legend()
     # plt.show()
 
+    # TODO Check inhibition
+
     # Run simulation
     states, outputs = model(inputs)
     # (seq_len, state index, batch, neuron)
@@ -299,6 +306,7 @@ def train_xor():
     # Data
     X, Y = generate_xor_data(input_strength)
     X, Y = X.to(device), Y.to(device)
+    assert X.shape == (4, 2), f"X shape: {X.shape}"
     x_input = torch.zeros(seq_len, 4, 2, device=device)
     for t in range(input_duration):
         x_input[t] = X
@@ -313,6 +321,7 @@ def train_xor():
             final_output = outputs
         loss = F.binary_cross_entropy_with_logits(final_output, Y)
         loss.backward()
+        # print(model.stp_model.raw_J.grad) # Very small gradients...
         optimizer.step()
 
         losses.append(loss.item())
