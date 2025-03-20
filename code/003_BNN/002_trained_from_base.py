@@ -151,9 +151,7 @@ class STPWrapper(nn.Module):
 
 
 class PaperSTPWrapper(STPWrapper):
-    def __init__(self, N=1000, P=16, f=0.05, J_EE=8, PER_NEURON_MODEL=True, **kwargs):
-        # PER_NEURON_MODEL: Set to False to emulate the per-cluster model, with 
-        #  1 neuron per cluster, and non-zero connections between clusters.
+    def __init__(self, N=1000, P=16, f=0.05, J_EE=8, **kwargs):
         J_IE_default = 1.75
         neurons_per_cluster = int(N * f) # Must be the same as in the initialize_eta function
         kwargs['J_IE'] = kwargs.get('J_IE', J_IE_default) / neurons_per_cluster  # * P / N  # Scale J_IE
@@ -161,9 +159,11 @@ class PaperSTPWrapper(STPWrapper):
 
         super().__init__(N=N, in_size=P, out_size=P, **kwargs)
 
+        self.P = P
         # Generate memory patterns and connectivity
-        self.eta = initialize_eta(P, N, f, PER_NEURON_MODEL)
-        self.J = compute_connection_matrix(self.eta, J_EE, f, PER_NEURON_MODEL)
+        self.eta = initialize_eta(P, N, f, random=True)
+        self.J = compute_connection_matrix(self.eta, J_EE)
+            
 
         # No training
         self.stp_model.raw_J.requires_grad_(False)
@@ -187,16 +187,31 @@ class PaperSTPWrapper(STPWrapper):
         # Output
         self.output_layer.weight = nn.Parameter(self.eta.detach().clone())
 
-class ClusterSTPWrapper(PaperSTPWrapper):
+class ClusterSTPWrapper(STPWrapper):
     """
-    Helper class to create a model with 1 neuron per cluster, 
-    with non-zero connections between clusters.
+    Helper class to emulate the per-cluster model with 1 neuron per cluster, 
+    and non-zero connections between clusters.
     """
-    def __init__(self, P=16, J_EE=8, **kwargs):
-        N = P
-        f = 1.0 / P
+    def __init__(self, P=16, J_EE=8, f=0.05, **kwargs):
+        # NOTE this method reuses code from PaperSTPWrapper.
+        super().__init__(N=P, in_size=P, out_size=P, **kwargs)
 
-        super().__init__(N=N, P=P, f=f, J_EE=J_EE, PER_NEURON_MODEL=False, **kwargs)
+        self.P = P
+        # Initialize diagonal eta
+        self.eta = torch.eye(P)
+        # Baseline weak cross-cluster connections
+        self.J = compute_connection_matrix(self.eta, J_EE, J_EE * f) 
+        # No training
+        self.stp_model.raw_J.requires_grad_(False)
+        self.input_layer.weight.requires_grad_(False)
+        self.output_layer.weight.requires_grad_(False)
+        # Invert softplus
+        self.stp_model.raw_J.data = torch.log(torch.exp(self.J) - 1)
+        if TEMP_TEST:
+            self.stp_model.raw_J.data = self.J
+        # Configure input/output to target clusters
+        self.input_layer.weight = nn.Parameter(self.eta.detach().clone().T)
+        self.output_layer.weight = nn.Parameter(self.eta.detach().clone())
 
 
 # ---- Initialization functions
@@ -214,14 +229,12 @@ def initialize_eta(P=16, N=100, f=0.05, random=True):
         else:
             start = p * neurons_per_cluster
             end = start + neurons_per_cluster
-            eta[p, start:end] = 1  # Cluster p occupies neurons [start:end]
+            eta[p, start:end] = 1
     return eta
 
-def compute_connection_matrix(eta, J_EE=8, f=0.05, zero_default=True):
-    """J_ij = J_EE if i,j share a pattern, else: {0 or f*J_EE} depending on zero_default."""
-    J = torch.ones(eta.shape[1], eta.shape[1]) * f * J_EE  # Baseline: weak cross-cluster
-    if zero_default:
-        J = torch.zeros(eta.shape[1], eta.shape[1])
+def compute_connection_matrix(eta, J_EE=8, J_0=0):
+    """J_ij = J_EE if i,j share a pattern, else J_0."""
+    J = torch.ones(eta.shape[1], eta.shape[1]) * J_0
     J[(eta.T @ eta).bool()] = J_EE
     return J
 
@@ -239,20 +252,25 @@ def simulate_paper():
     P = 16 # 16
     N = 1000 # 1000
     f = 0.05 # 0.05
-
     dt = 1e-3
-    
     model = PaperSTPWrapper(
         N=N, P=P, f=f, dt=dt,
         J_EE=8, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0
     ).to(device)
-    # model = ClusterSTPWrapper(P=P, dt=dt, J_EE=8, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0).to(device)
-
-    # Stimulation sequence
-    seq_len = int(2.5 / model.dt)
     input_strength = 365.0 # Pt. 2.3 of supplemental material
+    duration = 2.5
+    simulate_paper_with_model(model, input_strength, duration)
+
+def simulate_cluster_stp():
+    model = ClusterSTPWrapper(P=16, f=0.05, dt=1e-4, J_EE=8, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, J_EI=1.1, I_b = 8.0).to(device)
+    simulate_paper_with_model(model, input_strength=225.0, duration=2.0)
+
+def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5):
+    """Simulate the paper test with the given model and input strength, for 'duration' seconds."""
+    # Stimulation sequence
+    seq_len = int(duration / model.dt)
     batch_size = 1
-    inputs = torch.zeros(seq_len, batch_size, P, device=device)
+    inputs = torch.zeros(seq_len, batch_size, model.P, device=device)
     for p in range(5):
         start = p * int(100e-3 / model.dt)
         end = start + int(30e-3 / model.dt)
@@ -326,8 +344,6 @@ def simulate_paper():
     plt.tight_layout()
     plt.show()
 
-
-
 def train_xor():
     # Hyperparameters
     N = 100
@@ -372,5 +388,6 @@ def train_xor():
     plt.show()
 
 if __name__ == "__main__":
-    simulate_paper()
+    simulate_cluster_stp()
+    # simulate_paper()
     # train_xor()
