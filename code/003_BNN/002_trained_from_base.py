@@ -149,7 +149,6 @@ class STPWrapper(nn.Module):
         # Stack outputs while retaining gradients for training
         return states, outputs
 
-
 class PaperSTPWrapper(STPWrapper):
     def __init__(self, N=1000, P=16, f=0.05, J_EE=8, **kwargs):
         J_IE_default = 1.75
@@ -175,16 +174,8 @@ class PaperSTPWrapper(STPWrapper):
         if TEMP_TEST:
             self.stp_model.raw_J.data = self.J
 
-        # Configure input/output to target clusters
-        self._configure_input_output()
-
-    def _configure_input_output(self):
-        """Set input/output weights to map to/from clusters"""
-        # Note that nn.Linear weights follow (output, input) convention
-        P, N = self.eta.shape
-        # Input
+        # Configure input/output to target patterns
         self.input_layer.weight = nn.Parameter(self.eta.detach().clone().T)
-        # Output
         self.output_layer.weight = nn.Parameter(self.eta.detach().clone())
 
 class ClusterSTPWrapper(STPWrapper):
