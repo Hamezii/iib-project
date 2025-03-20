@@ -191,7 +191,10 @@ class PaperSTPWrapper(STPWrapper):
 
 # ---- Initialization functions
 def initialize_eta(P=16, N=100, f=0.05, random=True):
-    """Create clustered memory patterns (P x N)"""
+    """Create clustered memory patterns (P x N).
+    
+    random: True for random neurons per pattern, False for contiguous non-connected pattern assignments.
+    """
     neurons_per_cluster = int(N * f)
     eta = torch.zeros(P, N)
     for p in range(P):
@@ -205,7 +208,7 @@ def initialize_eta(P=16, N=100, f=0.05, random=True):
     return eta
 
 def compute_connection_matrix(eta, J_EE=8, f=0.05, zero_default=True):
-    """J_ij = J_EE if i,j share a cluster, else f*J_EE"""
+    """J_ij = J_EE if i,j share a pattern, else: {0 or f*J_EE} depending on zero_default."""
     J = torch.ones(eta.shape[1], eta.shape[1]) * f * J_EE  # Baseline: weak cross-cluster
     if zero_default:
         J = torch.zeros(eta.shape[1], eta.shape[1])
