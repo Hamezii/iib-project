@@ -119,25 +119,25 @@ class STPWrapper(nn.Module):
         nn.init.normal_(self.output_layer.weight, mean=0.0, std=0.1)
         nn.init.constant_(self.output_layer.bias, 0.0)
 
-    def forward(self, x):
-        # x has shape (seq_len, batch_size, in_size)
-        seq_len = x.size(0)
-        batch_size = x.size(1)
-        # assert(x.size(2) == self.in_size)
+    def forward(self, inp):
+        # inp has shape (seq_len, batch_size, in_size)
+        seq_len = inp.size(0)
+        batch_size = inp.size(1)
+        # assert(inp.size(2) == self.in_size)
         
         # Initialize STP state variables
-        h = torch.zeros(batch_size, self.N, requires_grad=True, device=x.device)
-        u = torch.full((batch_size, self.N), self.stp_model.U.item(), requires_grad=True, device=x.device)
-        x_state = torch.ones(batch_size, self.N, requires_grad=True, device=x.device)
-        h_I = torch.zeros(batch_size, 1, requires_grad=True, device=x.device)
-        state = (h, u, x_state, h_I)
+        h = torch.zeros(batch_size, self.N, requires_grad=True, device=inp.device)
+        u = torch.full((batch_size, self.N), self.stp_model.U.item(), requires_grad=True, device=inp.device)
+        x = torch.ones(batch_size, self.N, requires_grad=True, device=inp.device)
+        h_I = torch.zeros(batch_size, 1, requires_grad=True, device=inp.device)
+        state = (h, u, x, h_I)
 
         # Run through STP dynamics
         outputs = []
         states = []
-        # outputs = torch.zeros(seq_len, batch_size, self.out_size, device=x.device)
+        # outputs = torch.zeros(seq_len, batch_size, self.out_size, device=inp.device)
         for t in range(seq_len):
-            I_e = self.input_layer(x[t]) # Transform input to STP dimensions
+            I_e = self.input_layer(inp[t]) # Transform input to STP dimensions
             state = self.stp_model(state, I_e)
             states.append(state)
             
