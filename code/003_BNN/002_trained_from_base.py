@@ -240,7 +240,7 @@ def simulate_paper():
     N = 1000 # 1000
     f = 0.05 # 0.05
 
-    dt = 1e-3 # TODO IMPORTANT TO CHECK
+    dt = 1e-3
     
     model = PaperSTPWrapper(
         N=N, P=P, f=f, dt=dt,
