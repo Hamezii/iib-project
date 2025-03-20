@@ -262,9 +262,26 @@ def simulate_paper():
     states, outputs = model(inputs)
     # (seq_len, state index, batch, neuron)
     ux_traces = {p: [] for p in range(5)}
-    
+    state_vars = ('h', 'u', 'x', 'h_I')
+    scalar_vars = ('h_I',)
+    per_neuron_vars = ('h', 'u', 'x')
+    state_traces = {}
+    for variable in per_neuron_vars: # Variables with per-neuron values
+        state_traces[variable] = {p: [] for p in range(5)}
+    for variable in scalar_vars: # Variables with scalar values
+        state_traces[variable] = []
+
     for t in range(seq_len):
         state = states[t]
+        for i, var in enumerate(state_vars):
+            if var in per_neuron_vars: # If variable has per-neuron values
+                var_vals = state[i][0, :]
+                for p in range(5):
+                    cluster_neurons = model.eta[p].bool()
+                    state_traces[var][p].append(var_vals[cluster_neurons].mean().item())
+            else: # If variable is scalar
+                state_traces[var].append(state[i].item())
+
         u, x = state[1], state[2]
         u_x = u[0, :] * x[0, :]
         assert u_x.shape == (N,), f"u_x shape: {u_x.shape}"
@@ -280,6 +297,26 @@ def simulate_paper():
     plt.ylabel('Synaptic Efficacy (u*x)')
     plt.legend()
     plt.show()
+
+    # Plot state variables in a 2x2 figure
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+    titles = ['Mean h (Cluster)', 'Mean u (Cluster)', 'Mean x (Cluster)', 'h_I']
+
+    for i, variable in enumerate(state_vars):
+        ax = axes[i // 2, i % 2]
+        if variable in per_neuron_vars:
+            for p in range(5):
+                ax.plot(state_traces[variable][p], label=f'Cluster {p+1}')
+        else:  # Scalar variable
+            ax.plot(state_traces[variable], label=variable)
+        ax.set_title(titles[i])
+        ax.set_xlabel('Time (0.1ms steps)')
+        ax.set_ylabel(variable)
+        ax.legend()
+
+    plt.tight_layout()
+    plt.show()
+
 
 
 def train_xor():
