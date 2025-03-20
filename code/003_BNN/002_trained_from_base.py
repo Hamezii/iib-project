@@ -149,12 +149,13 @@ class STPWrapper(nn.Module):
         # Stack outputs while retaining gradients for training
         return states, outputs
 
-
 class PaperSTPWrapper(STPWrapper):
     def __init__(self, N=1000, P=16, f=0.05, J_EE=8, **kwargs):
         J_IE_default = 1.75
         neurons_per_cluster = int(N * f) # Must be the same as in the initialize_eta function
-        kwargs['J_IE'] = kwargs.get('J_IE', J_IE_default) / neurons_per_cluster  # * P / N  # Scale J_IE
+
+        # Scale connection strengths by neuron counts
+        kwargs['J_IE'] = kwargs.get('J_IE', J_IE_default) / neurons_per_cluster
         J_EE /= neurons_per_cluster
 
         super().__init__(N=N, in_size=P, out_size=P, **kwargs)
@@ -163,7 +164,6 @@ class PaperSTPWrapper(STPWrapper):
         # Generate memory patterns and connectivity
         self.eta = initialize_eta(P, N, f, random=True)
         self.J = compute_connection_matrix(self.eta, J_EE)
-            
 
         # No training
         self.stp_model.raw_J.requires_grad_(False)
@@ -175,16 +175,8 @@ class PaperSTPWrapper(STPWrapper):
         if TEMP_TEST:
             self.stp_model.raw_J.data = self.J
 
-        # Configure input/output to target clusters
-        self._configure_input_output()
-
-    def _configure_input_output(self):
-        """Set input/output weights to map to/from clusters"""
-        # Note that nn.Linear weights follow (output, input) convention
-        P, N = self.eta.shape
-        # Input
+        # Configure input/output to target patterns
         self.input_layer.weight = nn.Parameter(self.eta.detach().clone().T)
-        # Output
         self.output_layer.weight = nn.Parameter(self.eta.detach().clone())
 
 class ClusterSTPWrapper(STPWrapper):
@@ -200,7 +192,7 @@ class ClusterSTPWrapper(STPWrapper):
         # Initialize diagonal eta
         self.eta = torch.eye(P)
         # Baseline weak cross-cluster connections
-        self.J = compute_connection_matrix(self.eta, J_EE, J_EE * f) 
+        self.J = compute_connection_matrix(self.eta, J_EE, J_EE * f)
         # No training
         self.stp_model.raw_J.requires_grad_(False)
         self.input_layer.weight.requires_grad_(False)
