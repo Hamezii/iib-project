@@ -15,8 +15,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # device = torch.device('cpu')
 # print("Using device:", device)
 
-TEMP_TEST = False
-TEST_PRESQUEEZE = True # Doesn't seem to fix
+TEMP_TEST = True
 
 # ---- Model
 class STPModel(nn.Module):
@@ -155,9 +154,6 @@ class STPWrapper(nn.Module):
             output = self.output_layer(self.stp_model.compute_R(state[0]))
             # outputs[t] = output
             outputs.append(output)
-
-        if TEST_PRESQUEEZE:
-            outputs = outputs[-1].squeeze(-1)
 
         # Stack outputs while retaining gradients for training
         return states, outputs
@@ -311,8 +307,6 @@ def train_xor():
         optimizer.zero_grad()
         states, outputs = model(x_input)
         final_output = outputs[-1].squeeze(-1)
-        if TEST_PRESQUEEZE:
-            final_output = outputs
         loss = F.binary_cross_entropy_with_logits(final_output, Y)
         loss.backward()
         # print(model.stp_model.raw_J.grad) # Very small gradients...
