@@ -3,3 +3,7 @@
 
 1XX: pre connection matrix fix, all unassigned neurons were being assigned to cluster 0.
 2XX: post connection matrix fix
+
+For cluster-level model, h_I would go up to around 250
+
+3XX: Fixed dt off-by-one (assuming dt was 1ms when it was actually 0.1ms)
