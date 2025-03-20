@@ -151,18 +151,19 @@ class STPWrapper(nn.Module):
 
 
 class PaperSTPWrapper(STPWrapper):
-    def __init__(self, N=1000, P=16, f=0.05, J_EE=8, **kwargs):
+    def __init__(self, N=1000, P=16, f=0.05, J_EE=8, PER_NEURON_MODEL=True, **kwargs):
+        # PER_NEURON_MODEL: Set to False to emulate the per-cluster model, with 
+        #  1 neuron per cluster, and non-zero connections between clusters.
         J_IE_default = 1.75
-        neurons_per_cluster = int(N * f)
+        neurons_per_cluster = int(N * f) # Must be the same as in the initialize_eta function
         kwargs['J_IE'] = kwargs.get('J_IE', J_IE_default) / neurons_per_cluster  # * P / N  # Scale J_IE
         J_EE /= neurons_per_cluster
-        
-        
+
         super().__init__(N=N, in_size=P, out_size=P, **kwargs)
 
         # Generate memory patterns and connectivity
-        self.eta = initialize_eta(P, N, f)
-        self.J = compute_connection_matrix(self.eta, J_EE, f)
+        self.eta = initialize_eta(P, N, f, PER_NEURON_MODEL)
+        self.J = compute_connection_matrix(self.eta, J_EE, f, PER_NEURON_MODEL)
 
         # No training
         self.stp_model.raw_J.requires_grad_(False)
@@ -186,7 +187,16 @@ class PaperSTPWrapper(STPWrapper):
         # Output
         self.output_layer.weight = nn.Parameter(self.eta.detach().clone())
 
-        print(self.output_layer.weight)
+class ClusterSTPWrapper(PaperSTPWrapper):
+    """
+    Helper class to create a model with 1 neuron per cluster, 
+    with non-zero connections between clusters.
+    """
+    def __init__(self, P=16, J_EE=8, **kwargs):
+        N = P
+        f = 1.0 / P
+
+        super().__init__(N=N, P=P, f=f, J_EE=J_EE, PER_NEURON_MODEL=False, **kwargs)
 
 
 # ---- Initialization functions
@@ -236,6 +246,7 @@ def simulate_paper():
         N=N, P=P, f=f, dt=dt,
         J_EE=8, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0
     ).to(device)
+    # model = ClusterSTPWrapper(P=P, dt=dt, J_EE=8, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0).to(device)
 
     # Stimulation sequence
     seq_len = int(2.5 / dt)
@@ -282,7 +293,7 @@ def simulate_paper():
 
         u, x = state[1], state[2]
         u_x = u[0, :] * x[0, :]
-        assert u_x.shape == (N,), f"u_x shape: {u_x.shape}"
+        # assert u_x.shape == (N,), f"u_x shape: {u_x.shape}"
         for p in range(5):
             cluster_neurons = model.eta[p].bool()
             ux_traces[p].append(u_x[cluster_neurons].mean().item())
