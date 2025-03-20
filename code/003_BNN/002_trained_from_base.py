@@ -155,7 +155,6 @@ class PaperSTPWrapper(STPWrapper):
         J_IE_default = 1.75
         neurons_per_cluster = int(N * f)
         kwargs['J_IE'] = kwargs.get('J_IE', J_IE_default) / neurons_per_cluster  # * P / N  # Scale J_IE
-        kwargs['J_EI'] = kwargs.get('J_EI', 1.1) / neurons_per_cluster
         J_EE /= neurons_per_cluster
         
         
