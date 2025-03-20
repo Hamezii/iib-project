@@ -85,7 +85,6 @@ class STPModel(nn.Module):
         # Update depression variables (Equation 6)
         dx = (1 - x)/self.tau_d - u * x * R
         # Update inhibitory population (Equation 7)
-        # TODO consider scaling this
         dh_I = (-h_I + self.J_IE * torch.sum(R, dim=1, keepdim=True))/self.tau
 
         # Check for NaNs in intermediate variables
@@ -247,8 +246,6 @@ def simulate_paper():
     # plt.ylabel('Input')
     # plt.legend()
     # plt.show()
-
-    # TODO Check inhibition
 
     # Run simulation
     states, outputs = model(inputs)
