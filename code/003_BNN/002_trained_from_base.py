@@ -226,20 +226,22 @@ def simulate_paper():
     P = 16 # 16
     N = 1000 # 1000
     f = 0.05 # 0.05
+
+    dt = 1e-3 # TODO IMPORTANT TO CHECK
     
     model = PaperSTPWrapper(
-        N=N, P=P, f=f, J_EE=8,
-        dt=1e-4, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0
+        N=N, P=P, f=f, dt=dt,
+        J_EE=8, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0
     ).to(device)
 
     # Stimulation sequence
-    seq_len = 2500  # 2.5 seconds at dt=1e-4
+    seq_len = int(2.5 / dt)
     input_strength = 365.0 # Pt. 2.3 of supplemental material
     batch_size = 1
     inputs = torch.zeros(seq_len, batch_size, P, device=device)
     for p in range(5):
-        start = p * 100
-        end = start + 30
+        start = p * int(100e-3 / dt)
+        end = start + int(30e-3 / dt)
         inputs[start:end, 0, p] = input_strength
 
     # Plotting inputs
@@ -286,7 +288,7 @@ def simulate_paper():
     plt.figure()
     for p in range(5):
         plt.plot(ux_traces[p], label=f'Cluster {p+1}')
-    plt.xlabel('Time (0.1ms steps)')
+    plt.xlabel(f'Time ({dt * 1e3}ms steps)')
     plt.ylabel('Synaptic Efficacy (u*x)')
     plt.legend()
     plt.show()
