@@ -2,3 +2,4 @@
 001: 50ms XOR signal, measure h after 600ms
 
 1XX: pre connection matrix fix, all unassigned neurons were being assigned to cluster 0.
+2XX: post connection matrix fix
