@@ -188,16 +188,10 @@ class PaperSTPWrapper(STPWrapper):
         """Set input/output weights to map to/from clusters"""
         # Note that nn.Linear weights follow (output, input) convention
         P, N = self.eta.shape
-        # TODO compare this code to eta and output is eta/ int(N*f)
-        # TODO see if matrices are the same
         # Input
-        nn.init.zeros_(self.input_layer.weight)
-        for p in range(P):
-            self.input_layer.weight[self.eta[p].bool(), p] = 1.0
+        self.input_layer.weight = nn.Parameter(self.eta.detach().clone().T)
         # Output
-        nn.init.zeros_(self.output_layer.weight)
-        for p in range(P):
-            self.output_layer.weight[p, self.eta[p].bool()] = 1.0
+        self.output_layer.weight = nn.Parameter(self.eta.detach().clone())
 
 
 # ---- Initialization functions
