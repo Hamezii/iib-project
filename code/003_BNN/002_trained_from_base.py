@@ -69,16 +69,8 @@ class STPModel(nn.Module):
 
         # Update synaptic currents (Equation 4)
         # Note: J_ij is the synaptic weight from neuron j to neuron i
+        
         synaptic_inputs = torch.matmul(J_eff, (u * x * R).T).T
-        # print(h.shape)
-        # print(synaptic_inputs.shape)
-        # print(R_I.shape)
-        # print(I_e.shape)
-        # print(h)
-        # print(synaptic_inputs)
-        # print(R_I) # R_I goes to inf
-        # print(I_e)
-        # input()
         dh = (-h + synaptic_inputs - self.J_EI * R_I + self.I_b + I_e)/self.tau
         # Update facilitation variables (Equation 5)
         du = (self.U - u)/self.tau_f + self.U * (1 - u) * R
@@ -161,7 +153,11 @@ class STPWrapper(nn.Module):
 class PaperSTPWrapper(STPWrapper):
     def __init__(self, N=1000, P=16, f=0.05, J_EE=8, **kwargs):
         J_IE_default = 1.75
-        kwargs['J_IE'] = kwargs.get('J_IE', J_IE_default)/ int(N * f) # * P / N  # Scale J_IE
+        neurons_per_cluster = int(N * f)
+        kwargs['J_IE'] = kwargs.get('J_IE', J_IE_default) / neurons_per_cluster  # * P / N  # Scale J_IE
+        kwargs['J_EI'] = kwargs.get('J_EI', 1.1) / neurons_per_cluster
+        J_EE /= neurons_per_cluster
+        
         
         super().__init__(N=N, in_size=P, out_size=P, **kwargs)
 
@@ -191,21 +187,29 @@ class PaperSTPWrapper(STPWrapper):
         # Output
         self.output_layer.weight = nn.Parameter(self.eta.detach().clone())
 
+        print(self.output_layer.weight)
+
 
 # ---- Initialization functions
-def initialize_eta(P=16, N=100, f=0.05):
+def initialize_eta(P=16, N=100, f=0.05, random=True):
     """Create clustered memory patterns (P x N)"""
     neurons_per_cluster = int(N * f)
     eta = torch.zeros(P, N)
     for p in range(P):
-        start = p * neurons_per_cluster
-        end = start + neurons_per_cluster
-        eta[p, start:end] = 1  # Cluster p occupies neurons [start:end]
+        if random:
+            neurons = torch.randperm(N)[:neurons_per_cluster]
+            eta[p, neurons] = 1
+        else:
+            start = p * neurons_per_cluster
+            end = start + neurons_per_cluster
+            eta[p, start:end] = 1  # Cluster p occupies neurons [start:end]
     return eta
 
-def compute_connection_matrix(eta, J_EE=8, f=0.05):
+def compute_connection_matrix(eta, J_EE=8, f=0.05, zero_default=True):
     """J_ij = J_EE if i,j share a cluster, else f*J_EE"""
     J = torch.ones(eta.shape[1], eta.shape[1]) * f * J_EE  # Baseline: weak cross-cluster
+    if zero_default:
+        J = torch.zeros(eta.shape[1], eta.shape[1])
     J[(eta.T @ eta).bool()] = J_EE
     return J
 
@@ -220,12 +224,13 @@ def generate_xor_data(input_strength):
 # ---- Methods
 def simulate_paper():
     # Initialize model with paper parameters
-    P = 16
-    N = 200
+    P = 16 # 16
+    N = 1000 # 1000
+    f = 0.05 # 0.05
     
     model = PaperSTPWrapper(
-        N=N, P=P, f=0.05, J_EE=8,
-        dt=1e-4, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 3.0
+        N=N, P=P, f=f, J_EE=8,
+        dt=1e-4, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0
     ).to(device)
 
     # Stimulation sequence
@@ -277,7 +282,7 @@ def simulate_paper():
         for p in range(5):
             cluster_neurons = model.eta[p].bool()
             ux_traces[p].append(u_x[cluster_neurons].mean().item())
-    
+
     # Plot results
     plt.figure()
     for p in range(5):
