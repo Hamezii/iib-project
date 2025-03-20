@@ -161,6 +161,9 @@ class STPWrapper(nn.Module):
 
 class PaperSTPWrapper(STPWrapper):
     def __init__(self, N=1000, P=16, f=0.05, J_EE=8, **kwargs):
+        J_IE_default = 1.75
+        kwargs['J_IE'] = kwargs.get('J_IE', J_IE_default)/ int(N * f) # * P / N  # Scale J_IE
+        
         super().__init__(N=N, in_size=P, out_size=P, **kwargs)
 
         # Generate memory patterns and connectivity
@@ -231,7 +234,7 @@ def simulate_paper():
     
     model = PaperSTPWrapper(
         N=N, P=P, f=0.05, J_EE=8,
-        dt=1e-4, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3
+        dt=1e-4, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 3.0
     ).to(device)
 
     # Stimulation sequence
