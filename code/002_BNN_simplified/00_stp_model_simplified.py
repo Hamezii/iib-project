@@ -159,8 +159,8 @@ def test_model_firing_rate():
     #plt.title()
     plt.legend()
     #plt.grid(True)
-    plt.savefig("001_test_R.svg")
-    plt.savefig("001_test_R.png")
+    #plt.savefig("001_test_R.svg")
+    #plt.savefig("001_test_R.png")
     plt.show()
 
     plt.figure(figsize=(25, 5))
@@ -173,8 +173,8 @@ def test_model_firing_rate():
     #plt.title()
     plt.legend()
     #plt.grid(True)
-    plt.savefig("002_test_ux.svg")
-    plt.savefig("002_test_ux.png")
+    #plt.savefig("002_test_ux.svg")
+    #plt.savefig("002_test_ux.png")
     plt.show()
 
 if __name__ == "__main__":
