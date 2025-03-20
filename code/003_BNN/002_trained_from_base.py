@@ -293,7 +293,7 @@ def simulate_paper():
 
         u, x = state[1], state[2]
         u_x = u[0, :] * x[0, :]
-        # assert u_x.shape == (N,), f"u_x shape: {u_x.shape}"
+        assert u_x.shape == (model.N,), f"u_x shape: {u_x.shape}"
         for p in range(5):
             cluster_neurons = model.eta[p].bool()
             ux_traces[p].append(u_x[cluster_neurons].mean().item())
