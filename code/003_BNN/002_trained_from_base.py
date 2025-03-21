@@ -239,10 +239,10 @@ def generate_xor_data(input_strength):
 
 
 # ---- Methods
-def simulate_paper():
+def simulate_paper(input_length=5):
     # Initialize model with paper parameters
     P = 16 # 16
-    N = 1000 # 1000
+    N = 5000 # 1000
     f = 0.05 # 0.05
     dt = 1e-3
     model = PaperSTPWrapper(
@@ -251,26 +251,26 @@ def simulate_paper():
     ).to(device)
     input_strength = 365.0 # Pt. 2.3 of supplemental material
     duration = 2.5
-    simulate_paper_with_model(model, input_strength, duration)
+    simulate_paper_with_model(model, input_strength, duration, input_length)
 
 def simulate_cluster_stp():
     model = ClusterSTPWrapper(P=16, f=0.05, dt=1e-4, J_EE=8, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, J_EI=1.1, I_b = 8.0).to(device)
-    simulate_paper_with_model(model, input_strength=225.0, duration=2.0)
+    simulate_paper_with_model(model, input_strength=225.0, duration=2.5)
 
-def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5):
+def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, input_length=5):
     """Simulate the paper test with the given model and input strength, for 'duration' seconds."""
     # Stimulation sequence
     seq_len = int(duration / model.dt)
     batch_size = 1
     inputs = torch.zeros(seq_len, batch_size, model.P, device=device)
-    for p in range(5):
+    for p in range(input_length):
         start = p * int(100e-3 / model.dt)
         end = start + int(30e-3 / model.dt)
         inputs[start:end, 0, p] = input_strength
 
     # Plotting inputs
     # plt.figure()
-    # for p in range(5):
+    # for p in range(input_length):
     #     plt.plot(inputs[:, 0, p].tolist(), label=f'Cluster {p+1}')
     # plt.xlabel('Time (0.1ms steps)')
     # plt.ylabel('Input')
@@ -280,13 +280,13 @@ def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5):
     # Run simulation
     states, outputs = model(inputs)
     # (seq_len, state index, batch, neuron)
-    ux_traces = {p: [] for p in range(5)}
+    ux_traces = {p: [] for p in range(input_length)}
     state_vars = ('h', 'u', 'x', 'h_I')
     scalar_vars = ('h_I',)
     per_neuron_vars = ('h', 'u', 'x')
     state_traces = {}
     for variable in per_neuron_vars: # Variables with per-neuron values
-        state_traces[variable] = {p: [] for p in range(5)}
+        state_traces[variable] = {p: [] for p in range(input_length)}
     for variable in scalar_vars: # Variables with scalar values
         state_traces[variable] = []
 
@@ -295,7 +295,7 @@ def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5):
         for i, var in enumerate(state_vars):
             if var in per_neuron_vars: # If variable has per-neuron values
                 var_vals = state[i][0, :]
-                for p in range(5):
+                for p in range(input_length):
                     cluster_neurons = model.eta[p].bool()
                     state_traces[var][p].append(var_vals[cluster_neurons].mean().item())
             else: # If variable is scalar
@@ -304,13 +304,13 @@ def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5):
         u, x = state[1], state[2]
         u_x = u[0, :] * x[0, :]
         assert u_x.shape == (model.N,), f"u_x shape: {u_x.shape}"
-        for p in range(5):
+        for p in range(input_length):
             cluster_neurons = model.eta[p].bool()
             ux_traces[p].append(u_x[cluster_neurons].mean().item())
 
     # Plot results
     plt.figure()
-    for p in range(5):
+    for p in range(input_length):
         plt.plot(ux_traces[p], label=f'Cluster {p+1}')
     plt.xlabel(f'Time ({model.dt * 1e3}ms steps)')
     plt.ylabel('Synaptic Efficacy (u*x)')
@@ -324,7 +324,7 @@ def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5):
     for i, variable in enumerate(state_vars):
         ax = axes[i // 2, i % 2]
         if variable in per_neuron_vars:
-            for p in range(5):
+            for p in range(input_length):
                 ax.plot(state_traces[variable][p], label=f'Cluster {p+1}')
         else:  # Scalar variable
             ax.plot(state_traces[variable], label=variable)
@@ -380,6 +380,6 @@ def train_xor():
     plt.show()
 
 if __name__ == "__main__":
-    simulate_cluster_stp()
-    # simulate_paper()
+    # simulate_cluster_stp()
+    simulate_paper(input_length=4)
     # train_xor()
