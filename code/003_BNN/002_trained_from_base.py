@@ -244,7 +244,7 @@ def simulate_paper(input_length=5):
     P = 16 # 16
     N = 5000 # 1000
     f = 0.05 # 0.05
-    dt = 1e-3
+    dt = 1e-4
     model = PaperSTPWrapper(
         N=N, P=P, f=f, dt=dt,
         J_EE=8, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0
