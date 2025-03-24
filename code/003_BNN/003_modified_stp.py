@@ -99,6 +99,7 @@ class STPModel(nn.Module):
 
         return (h_new, u_new, x_new, h_I_new)
 
+
 class STPWrapper(nn.Module):
     """
     Wrapper class for STPModel to handle input and output layers.
