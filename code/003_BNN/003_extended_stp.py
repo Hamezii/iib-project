@@ -279,7 +279,7 @@ def initialize_eta(P=16, N=100, f=0.05, random=True):
 
 def compute_connection_matrix(eta, J_EE=8, J_0=0):
     """J_ij = J_EE if i,j share a pattern, else J_0."""
-    J = torch.ones(eta.shape[1], eta.shape[1]) * J_0
+    J = torch.full((eta.shape[1], eta.shape[1]), J_0, dtype=torch.float32)
     J[(eta.T @ eta).bool()] = J_EE
     return J
 
