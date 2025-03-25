@@ -211,6 +211,7 @@ class ExtendedSTPWrapper(STPWrapper):
         # Extending connectivity matrix
         self.J_ext = torch.zeros((self.N, self.N))
         self.J_ext[:self.N_a, :self.N_a] = self.J_orig
+        # TODO consider torch.nn.init.normal_(raw_J.data, 0.0, 0.1) instead of torch.randn
         self.J_ext[self.N_a:, :] = torch.randn(self.N_b, self.N) * 0.1
         # Invert softplus
         # with torch.no_grad():
