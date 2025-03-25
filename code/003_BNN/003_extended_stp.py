@@ -130,12 +130,13 @@ class STPWrapper(nn.Module):
         seq_len = inp.size(0)
         batch_size = inp.size(1)
         # assert(inp.size(2) == self.in_size)
-        
+
+        # TODO requires_grad set to false, check this is valid
         # Initialize STP state variables
-        h = torch.zeros(batch_size, self.N, requires_grad=True, device=inp.device)
-        u = torch.full((batch_size, self.N), self.stp_model.U.item(), requires_grad=True, device=inp.device)
-        x = torch.ones(batch_size, self.N, requires_grad=True, device=inp.device)
-        h_I = torch.zeros(batch_size, 1, requires_grad=True, device=inp.device)
+        h = torch.zeros(batch_size, self.N, requires_grad=False, device=inp.device)
+        u = torch.full((batch_size, self.N), self.stp_model.U.item(), requires_grad=False, device=inp.device)
+        x = torch.ones(batch_size, self.N, requires_grad=False, device=inp.device)
+        h_I = torch.zeros(batch_size, 1, requires_grad=False, device=inp.device)
         state = (h, u, x, h_I)
 
         # Run through STP dynamics
@@ -185,6 +186,50 @@ class PaperSTPWrapper(STPWrapper):
         # Configure input/output to target patterns
         self.input_layer.weight = nn.Parameter(self.eta.detach().clone().T)
         self.output_layer.weight = nn.Parameter(self.eta.detach().clone())
+
+class ExtendedSTPWrapper(STPWrapper):
+    def __init__(self, N_a=1000, N_b=1000, P=16, f=0.05, J_EE=8, **kwargs):
+        self.N_a=N_a # Number of default neurons
+        self.N_b=N_b # Nunber of additional computational neurons
+        self.N = N_a + N_b # NOTE self.N is the total number of neurons
+
+        # Scale connection strengths by neuron counts
+        neurons_per_cluster = int(N_a * f) # Must be the same as in the initialize_eta function
+        J_IE_default = 1.75
+        kwargs['J_IE'] = kwargs.get('J_IE', J_IE_default) / neurons_per_cluster
+        J_EE /= neurons_per_cluster
+
+        self.P = P
+        # Generate memory patterns and connectivity
+        # NOTE these are both for the unextended model
+        self.eta = initialize_eta(P, N_a, f, random=True)
+        self.J_orig = compute_connection_matrix(self.eta, J_EE)
+
+        super().__init__(N=self.N, in_size=P, out_size=P, **kwargs)
+
+    def initialize_parameters(self):
+        # Extending connectivity matrix
+        self.J_ext = torch.zeros((self.N, self.N))
+        self.J_ext[:self.N_a, :self.N_a] = self.J_orig
+        self.J_ext[self.N_a:, :] = torch.randn(self.N_b, self.N) * 0.1
+        # Invert softplus
+        # with torch.no_grad():
+        if TEMP_TEST:
+            self.stp_model.raw_J.data = self.J_ext
+        else:
+            self.stp_model.raw_J.data = torch.log(torch.exp(self.J_ext) - 1)
+
+        # Input (N x P)
+        B_extended = torch.zeros_like(self.input_layer.weight)
+        B_extended[:self.N_a, :] = self.eta.detach().clone().T
+        self.input_layer.weight = nn.Parameter(B_extended)
+        # NOTE freeze input weights
+        self.input_layer.weight.requires_grad_(False)
+        # Output (P x N)
+        C_extended = torch.zeros_like(self.output_layer.weight)
+        random_out_weights = torch.randn(self.P, self.N_b) * 0.1
+        C_extended[:, self.N_a:] = random_out_weights
+        self.output_layer.weight = nn.Parameter(C_extended)
 
 class ClusterSTPWrapper(STPWrapper):
     """
@@ -257,6 +302,16 @@ def simulate_paper(input_length=5, N=5000, P=16, f=0.05, dt=1e-4):
     duration = 2.5
     simulate_paper_with_model(model, input_strength, duration, input_length)
 
+def simulate_paper_extended(input_length=5, N_a=5000, N_b=5000, P=16, f=0.05, dt=1e-4):
+    # Initialize model with paper parameters
+    model = ExtendedSTPWrapper(
+        N_a=N_a, N_b=N_b, P=P, f=f, dt=dt,
+        J_EE=8, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0
+    ).to(device)
+    input_strength = 365.0 # Pt. 2.3 of supplemental material
+    duration = 2.5
+    simulate_paper_with_model(model, input_strength, duration, input_length)
+
 def simulate_cluster_stp():
     model = ClusterSTPWrapper(P=16, f=0.05, dt=1e-4, J_EE=8, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, J_EI=1.1, I_b = 8.0).to(device)
     simulate_paper_with_model(model, input_strength=225.0, duration=2.5)
@@ -300,7 +355,9 @@ def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, in
             if var in per_neuron_vars: # If variable has per-neuron values
                 var_vals = state[i][0, :]
                 for p in range(input_length):
-                    cluster_neurons = model.eta[p].bool()
+                    cluster_neurons = torch.zeros(model.N, dtype=torch.bool)
+                    cluster_neurons[:len(model.eta[p])] = model.eta[p].bool()
+                    # cluster_neurons = model.eta[p].bool()
                     state_traces[var][p].append(var_vals[cluster_neurons].mean().item())
             else: # If variable is scalar
                 state_traces[var].append(state[i].item())
@@ -309,7 +366,9 @@ def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, in
         u_x = u[0, :] * x[0, :]
         assert u_x.shape == (model.N,), f"u_x shape: {u_x.shape}"
         for p in range(input_length):
-            cluster_neurons = model.eta[p].bool()
+            cluster_neurons = torch.zeros(model.N, dtype=torch.bool)
+            cluster_neurons[:len(model.eta[p])] = model.eta[p].bool()
+            # cluster_neurons = model.eta[p].bool()
             ux_traces[p].append(u_x[cluster_neurons].mean().item())
 
     # Plot results
@@ -385,5 +444,5 @@ def train_xor():
 
 if __name__ == "__main__":
     # simulate_cluster_stp()
-    simulate_paper(input_length=4, N=1000, dt=1e-3)
+    simulate_paper_extended(input_length=4, N_a=1000, N_b=50, dt=1e-3)
     # train_xor()
