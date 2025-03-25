@@ -157,7 +157,7 @@ class STPWrapper(nn.Module):
         return states, outputs
 
 class PaperSTPWrapper(STPWrapper):
-    def __init__(self, N=1000, P=16, f=0.05, J_EE=8, **kwargs):
+    def __init__(self, N=1000, P=16, f=0.05, J_EE=8.0, **kwargs):
         J_IE_default = 1.75
         neurons_per_cluster = int(N * f) # Must be the same as in the initialize_eta function
 
@@ -188,7 +188,7 @@ class PaperSTPWrapper(STPWrapper):
         self.output_layer.weight = nn.Parameter(self.eta.detach().clone())
 
 class ExtendedSTPWrapper(STPWrapper):
-    def __init__(self, N_a=1000, N_b=1000, P=16, f=0.05, J_EE=8, **kwargs):
+    def __init__(self, N_a=1000, N_b=1000, P=16, f=0.05, J_EE=8.0, **kwargs):
         self.N_a=N_a # Number of default neurons
         self.N_b=N_b # Nunber of additional computational neurons
         self.N = N_a + N_b # NOTE self.N is the total number of neurons
@@ -236,7 +236,7 @@ class ClusterSTPWrapper(STPWrapper):
     Helper class to emulate the per-cluster model with 1 neuron per cluster, 
     and non-zero connections between clusters.
     """
-    def __init__(self, P=16, J_EE=8, f=0.05, **kwargs):
+    def __init__(self, P=16, J_EE=8.0, f=0.05, **kwargs):
         # NOTE this method reuses code from PaperSTPWrapper.
         self.P = P
         # Initialize diagonal eta
@@ -277,7 +277,7 @@ def initialize_eta(P=16, N=100, f=0.05, random=True):
             eta[p, start:end] = 1
     return eta
 
-def compute_connection_matrix(eta, J_EE=8, J_0=0):
+def compute_connection_matrix(eta, J_EE=8.0, J_0=0.0):
     """J_ij = J_EE if i,j share a pattern, else J_0."""
     J = torch.full((eta.shape[1], eta.shape[1]), J_0, dtype=torch.float32)
     J[(eta.T @ eta).bool()] = J_EE
@@ -307,7 +307,7 @@ def simulate_paper(input_length=5, N=5000, P=16, f=0.05, dt=1e-4):
     # Initialize model with paper parameters
     model = PaperSTPWrapper(
         N=N, P=P, f=f, dt=dt,
-        J_EE=8, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0
+        J_EE=8.0, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0
     ).to(device)
     input_strength = 365.0 # Pt. 2.3 of supplemental material
     duration = 2.5
@@ -317,14 +317,14 @@ def simulate_paper_extended(input_length=5, N_a=5000, N_b=5000, P=16, f=0.05, dt
     # Initialize model with paper parameters
     model = ExtendedSTPWrapper(
         N_a=N_a, N_b=N_b, P=P, f=f, dt=dt,
-        J_EE=8, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0
+        J_EE=8.0, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0
     ).to(device)
     input_strength = 365.0 # Pt. 2.3 of supplemental material
     duration = 2.5
     simulate_paper_with_model(model, input_strength, duration, input_length)
 
 def simulate_cluster_stp():
-    model = ClusterSTPWrapper(P=16, f=0.05, dt=1e-4, J_EE=8, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, J_EI=1.1, I_b = 8.0).to(device)
+    model = ClusterSTPWrapper(P=16, f=0.05, dt=1e-4, J_EE=8.0, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, J_EI=1.1, I_b = 8.0).to(device)
     simulate_paper_with_model(model, input_strength=225.0, duration=2.5)
 
 def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, input_length=5):
