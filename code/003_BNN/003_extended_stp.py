@@ -290,6 +290,17 @@ def generate_xor_data(input_strength):
     Y = torch.tensor([0, 1, 1, 0], dtype=torch.float32)
     return X, Y
 
+def generate_paper_input(dt, P=16, input_length=5, input_strength=365.0, batch_size=1, duration=2.5):
+    """Generate input sequence for the paper test."""
+    seq_len = int(duration / dt)
+    batch_size = 1
+    inputs = torch.zeros(seq_len, batch_size, P, device=device)
+    for p in range(input_length):
+        start = p * int(100e-3 / dt)
+        end = start + int(30e-3 / dt)
+        inputs[start:end, 0, p] = input_strength
+    return inputs
+
 
 # ---- Methods
 def simulate_paper(input_length=5, N=5000, P=16, f=0.05, dt=1e-4):
@@ -319,13 +330,8 @@ def simulate_cluster_stp():
 def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, input_length=5):
     """Simulate the paper test with the given model and input strength, for 'duration' seconds."""
     # Stimulation sequence
+    inputs = generate_paper_input(model.dt, model.P, input_length, input_strength, 1, duration)
     seq_len = int(duration / model.dt)
-    batch_size = 1
-    inputs = torch.zeros(seq_len, batch_size, model.P, device=device)
-    for p in range(input_length):
-        start = p * int(100e-3 / model.dt)
-        end = start + int(30e-3 / model.dt)
-        inputs[start:end, 0, p] = input_strength
 
     # Plotting inputs
     # plt.figure()
