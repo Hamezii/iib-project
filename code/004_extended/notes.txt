@@ -1,4 +1,0 @@
-00X: Testing with random weights for 50 extended neurons 
-"The following is the model behaving in the correct regime, with random initialisation of computation weights with std=0.1.
-Both tests had a small number of computational neurons compared to paper neurons, and did not enforce negative W weights."
-1000 paper neurons, 50 extended
