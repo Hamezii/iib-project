@@ -175,15 +175,17 @@ class STPWrapper(nn.Module):
         # outputs = []
         if step_hook_func is not None:
             hook = self.stp_layer.register_forward_hook(step_hook_func)
-        for t in range(seq_len):
-            I_e = self.input_layer(inp[t]) # Transform input to STP dimensions
-            state = self.stp_layer(state, I_e)
-            states.append(state)
 
-            # Add to outputs
-            output = self.output_layer(self.stp_layer.compute_R(state[0]))
-            outputs[t, :, :] = output
-            # outputs.append(output)
+        with parametrize.cached(): # Cache paramtrization calls for faster processing
+            for t in range(seq_len):
+                I_e = self.input_layer(inp[t]) # Transform input to STP dimensions
+                state = self.stp_layer(state, I_e)
+                states.append(state)
+
+                # Add to outputs
+                output = self.output_layer(self.stp_layer.compute_R(state[0]))
+                outputs[t, :, :] = output
+                # outputs.append(output)
 
         if step_hook_func is not None:
             hook.remove()
