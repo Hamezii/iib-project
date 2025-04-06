@@ -24,8 +24,8 @@ def simulate_paper_extended(input_length=5, N_a=5000, N_b=5000, P=16, f=0.05, dt
     duration = 2.5
     simulate_paper_with_model(model, input_strength, duration, input_length)
 
-def simulate_cluster_stp():
-    model = ClusterSTPWrapper(P=16, f=0.05, dt=1e-4, J_EE=8.0, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, J_EI=1.1, I_b = 8.0).to(device)
+def simulate_cluster_stp(dt=1e-3):
+    model = ClusterSTPWrapper(P=16, f=0.05, dt=dt, J_EE=8.0, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, J_EI=1.1, I_b = 8.0).to(device)
     simulate_paper_with_model(model, input_strength=225.0, duration=2.5)
 
 def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, input_length=5):
