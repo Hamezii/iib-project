@@ -1,0 +1,7 @@
+N_a=100, N_b=100, f=0.4:
+000: with 1 impulse, got to 0.01 loss after 35 steps
+001: with 2 impulses, wasn't able to solve after 200 steps, 0.09 error for each 0 target
+002: with 2 impulses, same issue but reversed! Didn't get plot for 1 output but same error
+
+
+003:
