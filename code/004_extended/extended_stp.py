@@ -49,12 +49,27 @@ class ParametrizationReLU(nn.Module): # Used for constraining non-negative matri
         else:
             return -self.relu(-X)
     def right_inverse(self, A):
-        return A
+        return torch.clamp(A, 0)
 
+
+class ParametrizationBlock(nn.Module):
+    """Create matrix block from 4 submatrices."""
+    def __init__(self, M_11, M_12, M_21, M_22):
+        super().__init__()
+        self.M_11 = M_11
+        self.M_12 = M_12
+        self.M_21 = M_21
+        self.M_22 = M_22
+
+    def forward(self, X):
+        return torch.vstack((
+            torch.hstack((self.M_11, self.M_12)),
+            torch.hstack((self.M_21, self.M_22))
+        ))
 
 # ---- Model
 class RecurrentLayer(nn.Module):
-    def __init__(self, N=100, dt=1e-4, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, alpha=1.5, I_b=8, J_EI=1.1, J_IE=2.2):
+    def __init__(self, N=100, dt=1e-4, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, alpha=1.5, I_b=8, J_EI=1.1, J_IE=2.2, **ignored_kwargs):
         super().__init__()
 
         # Network parameters
@@ -72,8 +87,8 @@ class RecurrentLayer(nn.Module):
         self.register_buffer('J_IE', torch.tensor(J_IE))
 
         # Trainable parameters
-        # TODO parametrize.register_parametrization(self, "J", ParametrizationReLU(positive=True))
         self.J = nn.Parameter(torch.zeros(N, N))
+        # self.J = nn.Buffer(torch.zeros(N, N)) # Is buffer so it is not directly trainable
         assert self.J.shape == (N, N), self.J.shape
 
     def compute_R(self, h):
@@ -138,19 +153,17 @@ class STPWrapper(nn.Module):
         self.N = N
         self.dt = dt
 
-        self.input_layer = nn.Linear(in_size, N, bias=False)
+        self.N_input = nn.Buffer(torch.tensor(stp_kwargs.get("N_input", N)))
+        self.N_output = nn.Buffer(torch.tensor(stp_kwargs.get("N_output", N)))
+        self.input_layer = nn.Linear(in_size, self.N_input, bias=False)
         self.stp_layer = RecurrentLayer(N=N, dt=dt, **stp_kwargs)
-        self.output_layer = nn.Linear(N, out_size, bias=False)
+        self.output_layer = nn.Linear(self.N_output, out_size, bias=False)
 
         self.initialize_parameters()
 
     def initialize_parameters(self):
         """Initialize parameters, overridden by child classes."""
-        nn.init.normal_(self.input_layer.weight, mean=0.0, std=0.1)
-        nn.init.constant_(self.input_layer.bias, 0.0)
-
-        nn.init.normal_(self.output_layer.weight, mean=0.0, std=0.1)
-        nn.init.constant_(self.output_layer.bias, 0.0)
+        return None
 
     def forward(self, inp, step_hook_func=None):
         """Perform forward pass through all time for input inp.
@@ -175,12 +188,15 @@ class STPWrapper(nn.Module):
 
         with parametrize.cached(): # Cache paramtrization calls for faster processing
             for t in range(seq_len):
-                I_e = self.input_layer(inp[t]) # Transform input to STP dimensions
+                I_e = self.input_layer(inp[t])
+                # I_e.shape = (batch_size, N_input)
+                I_e = F.pad(I_e, (0, self.N - self.N_input))
                 state = self.stp_layer(state, I_e)
                 states.append(state)
 
                 # Add to outputs
-                output = self.output_layer(self.stp_layer.compute_R(state[0]))
+                out_slice = state[0][:, -self.N_output:]
+                output = self.output_layer(self.stp_layer.compute_R(out_slice))
                 outputs[t, :, :] = output
                 # outputs.append(output)
 
@@ -209,17 +225,12 @@ class PaperSTPWrapper(STPWrapper):
         self.input_layer.weight.requires_grad = False
         self.output_layer.weight.requires_grad = False
         with torch.no_grad():
-            # Don't know if this method passes gradients
             self.stp_layer.J.copy_(self.J)
             self.input_layer.weight.copy_(self.eta.T)
             self.output_layer.weight.copy_(self.eta)
-        # self.stp_layer.J.data = self.J
-        # detach() here removes gradient, clone() makes new memory copy
-        # self.input_layer.weight = nn.Parameter(self.eta.detach().clone().T)
-        # self.output_layer.weight = nn.Parameter(self.eta.detach().clone())
 
 class ExtendedSTPWrapper(STPWrapper):
-    def __init__(self, N_a=1000, N_b=1000, P=16, f=0.05, J_EE=8.0, **kwargs):
+    def __init__(self, N_a=1000, N_b=1000, P=16, f=0.05, J_EE=8.0, out_size=16, **kwargs):
         self.N_a=N_a # Number of default neurons
         self.N_b=N_b # Nunber of additional computational neurons
         self.N = N_a + N_b # NOTE self.N is the total number of neurons
@@ -236,58 +247,75 @@ class ExtendedSTPWrapper(STPWrapper):
         self.eta = initialize_eta(P, N_a, f, random=True)
         self.J_orig = compute_connection_matrix(self.eta, J_EE)
 
-        super().__init__(N=self.N, in_size=P, out_size=P, **kwargs)
+        super().__init__(N=self.N, in_size=P, out_size=out_size, N_input=N_a, N_output=N_b, **kwargs)
 
     def initialize_parameters(self):
         trainable_B = False
+
+        trainable_J_11 = False
+        trainable_J_2X = True
+        positive_J_2X = True
+
         trainable_C = True
         positive_C = True
         C_sparsity = 0.1
         C_std = 1
-        trainable_base_neurons = False
-        constrain_comp_neurons = True
-        # New extended J matrix: with quadrants
-        self.J_11 = nn.Parameter(self.J_orig, requires_grad=trainable_base_neurons)
-        if trainable_base_neurons:
+        # Extended J matrix with quadrants (N x N)
+        self.J_11 = nn.Parameter(self.J_orig.clone().detach(), requires_grad=trainable_J_11)
+        if trainable_J_11:
             parametrize.register_parametrization(self, "J_11", ParametrizationReLU(positive=True))
         # Zero feedback from comp neurons to base neurons:
-        self.J_12 = torch.zeros(self.N_a, self.N_b)
+        self.J_12 = nn.Buffer(torch.zeros(self.N_a, self.N_b))
         # Computational neuron weights
-        self.J_21 = nn.Parameter(torch.zeros(self.N_b, self.N_a))
-        self.J_22 = nn.Parameter(torch.zeros(self.N_b, self.N_b))
-        if constrain_comp_neurons:
+        self.J_21 = nn.Parameter(torch.zeros(self.N_b, self.N_a), requires_grad=trainable_J_2X)
+        self.J_22 = nn.Parameter(torch.zeros(self.N_b, self.N_b), requires_grad=trainable_J_2X)
+        if positive_J_2X:
             parametrize.register_parametrization(self, "J_21", ParametrizationReLU(positive=True))
             parametrize.register_parametrization(self, "J_22", ParametrizationReLU(positive=True))
         # Xavier/Glorot init is better suited for sigmoid/tanh activations.
-        # Have ReLU-adjacent activation, so using He/kaiman initialization.
+        # Have ReLU-adjacent activation, so using He/Kaiming initialization.
         # This initialization considers number of inputs, but there might be orientation mismatch.
         #  - Assumes W.shape = [fan_out, fan_in] i.e. x @ W.T, which I believe is consistent.
         nn.init.kaiming_normal_(self.J_21, nonlinearity="relu")
         nn.init.kaiming_normal_(self.J_21, nonlinearity="relu")
+        # parametrize.register_parametrization(
+        #     self.stp_layer, "J",
+        #     ParametrizationBlock(self.J_11, self.J_12, self.J_21, self.J_22)
+        # )
         # NOTE check gradients are correct processed with this method
+        del self.stp_layer.J
         self.stp_layer.J = nn.Parameter(torch.vstack((
             torch.hstack((self.J_11, self.J_12)),
             torch.hstack((self.J_21, self.J_22))
         )))
+        # self.stp_layer.J.copy_(torch.vstack((
+        #     torch.hstack((self.J_11, self.J_12)),
+        #     torch.hstack((self.J_21, self.J_22))
+        # )))
+        # assert self.stp_layer.J.requires_grad, "Requires grad to pass on gradients to leaf params"
+        # assert not self.stp_layer.J.is_leaf, \
+        # "If stp_layer.J is a leaf, it means it is updated directly during training. \
+        # This breaks things since we want training only on the trainable parameters that \
+        # make up stp_layer.J."
 
-        # Input (N x P)
-        self.B_1 = nn.Parameter(self.eta.T, requires_grad=trainable_B)
-        if trainable_B:
+        # Input layer (N_a x P)
+        self.B_1 = nn.Parameter(self.eta.T.clone().detach(), requires_grad=trainable_B)
+        # self.B_2 = nn.Buffer(torch.zeros(self.N_b, self.P, requires_grad=False))
+        self.input_layer.weight = self.B_1
+        # self.input_layer.weight = nn.Parameter(torch.vstack((self.B_1, self.B_2)))
+        if trainable_B: # Assumes always positive B
             parametrize.register_parametrization(self, "B_1", ParametrizationReLU(positive=True))
-        # Zero computational neuron input
-        self.B_2 = torch.zeros(self.N_b, self.P, requires_grad=False)
-        # TODO check requires_grad logic for this parameter, where it depends on previous parameter
-        #  - Can't just assign a torch.Tensor since .weight is expecting a nn.Parameter
-        self.input_layer.weight = nn.Parameter(torch.vstack((self.B_1, self.B_2)), requires_grad=True)
 
-        # Output (P x N)
-        self.C_1 = torch.zeros(self.P, self.N_a, requires_grad=False)
+        # Output layer (P x N_b)
         self.C_2 = nn.Parameter(torch.zeros(self.P, self.N_b), requires_grad=trainable_C)
+        # self.C_1 = torch.zeros(self.P, self.N_a, requires_grad=False)
+        # Consider using nn.init.sparse_() or nn.init.kaiming_normal():
+        nn.init.sparse_(self.C_2, sparsity=C_sparsity, std=C_std)
+        # nn.init.kaiming_normal_(self.C_2, nonlinearity="relu")
+        self.output_layer.weight = self.C_2
+        # self.output_layer.weight = nn.Parameter(torch.hstack((self.C_1, self.C_2)))
         if positive_C:
             parametrize.register_parametrization(self, "C_2", ParametrizationReLU(positive=True))
-        # Consider using nn.init.sparse_() or nn.init.kaiming_normal()
-        nn.init.sparse_(self.C_2, sparsity=C_sparsity, std=C_std)
-        self.output_layer.weight = nn.Parameter(torch.hstack((self.C_1, self.C_2)), requires_grad=True)
 
 class ClusterSTPWrapper(STPWrapper):
     """
@@ -305,15 +333,14 @@ class ClusterSTPWrapper(STPWrapper):
         super().__init__(N=P, in_size=P, out_size=P, **kwargs)
 
     def initialize_parameters(self):
-        # No training
-        # self.stp_layer.J.requires_grad_(False)
-        # self.input_layer.weight.requires_grad_(False)
-        # self.output_layer.weight.requires_grad_(False)
-        self.stp_layer.J = nn.Parameter(self.J, requires_grad=False)
-            
-        # Configure input/output to target clusters
-        self.input_layer.weight = nn.Parameter(self.eta.detach().clone().T, requires_grad=False)
-        self.output_layer.weight = nn.Parameter(self.eta.detach().clone(), requires_grad=False)
+        self.stp_layer.J.requires_grad = False
+        self.input_layer.weight.requires_grad = False
+        self.output_layer.weight.requires_grad = False
+        with torch.no_grad():
+            self.stp_layer.J.copy_(self.J)
+            self.input_layer.weight.copy_(self.eta.T)
+            self.output_layer.weight.copy_(self.eta)
+
 
 # ---- Initialization functions
 def initialize_eta(P=16, N=100, f=0.05, random=True):
