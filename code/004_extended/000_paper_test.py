@@ -31,9 +31,9 @@ def simulate_cluster_stp():
 def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, input_length=5):
     """Simulate the paper test with the given model and input strength, for 'duration' seconds."""
     # Stimulation sequence
-    input_idx = torch.Tensor([[*range(5)]])
-    inputs = generate_one_hot_impulses(input_idx, 16, model.dt)
-    inputs = pad_impulses(inputs, model.dt, 2.5)
+    input_idx = torch.Tensor([[*range(input_length)]])
+    inputs = generate_one_hot_impulses(input_idx, model.P, model.dt, impulse_strength=input_strength)
+    inputs = pad_impulses(inputs, model.dt, duration)
     seq_len = int(duration / model.dt)
 
     # Run simulation
