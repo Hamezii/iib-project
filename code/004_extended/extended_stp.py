@@ -9,22 +9,18 @@ import torch.nn.functional as F
 import torch.nn.utils.parametrize as parametrize
 from torch.utils.data import DataLoader, IterableDataset
 from tqdm import tqdm
-import train_parity
 
 # ---- Device configuration
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# DEBUG below:
-# device = torch.device('cpu')
-# print("Using device:", device)
+# device = torch.device('cpu') # If just want to use cpu
 
-TEMP_TEST = True
 
 # --- Parametrizations
-# Adds preprocessing to the unconstrained, trainable network parameters before use.
+# Adds preprocessing to network parameters before use.
+# Useful since parameter training domain is unconstrained.
 # Usage:
 #  parametrize.register_parametrization(module, "parameter", ParametrizationReLU(positive=True))
-
-class ParametrizationSoftplus(nn.Module):
+class ParametrizationSoftplus(nn.Module): # NOTE not currently used.
     """Enforce sign of module parameter by using softplus."""
     softplus = nn.Softplus(beta=1.0/0.2) # alpha of 0.2, very close to ReLU
     def __init__(self, positive=True):
@@ -41,7 +37,7 @@ class ParametrizationSoftplus(nn.Module):
         # For now, setting the parameter will directly set preprocessed value
         return A
 
-class ParametrizationReLU(nn.Module):
+class ParametrizationReLU(nn.Module): # Used for constraining non-negative matrix weights
     """Enforce sign of module parameter by using ReLU."""
     relu = nn.ReLU()
     def __init__(self, positive=True):
@@ -149,6 +145,7 @@ class STPWrapper(nn.Module):
         self.initialize_parameters()
 
     def initialize_parameters(self):
+        """Initialize parameters, overridden by child classes."""
         nn.init.normal_(self.input_layer.weight, mean=0.0, std=0.1)
         nn.init.constant_(self.input_layer.bias, 0.0)
 
@@ -245,7 +242,7 @@ class ExtendedSTPWrapper(STPWrapper):
         trainable_B = False
         trainable_C = True
         positive_C = True
-        C_sparsity = 0.05
+        C_sparsity = 0.1
         C_std = 1
         trainable_base_neurons = False
         constrain_comp_neurons = True
@@ -341,176 +338,3 @@ def compute_connection_matrix(eta, J_EE=8.0, J_0=0.0):
     J = torch.full((eta.shape[1], eta.shape[1]), J_0, dtype=torch.float32)
     J[(eta.T @ eta).bool()] = J_EE
     return J
-
-
-# ---- Data generation
-
-
-def generate_xor_data(input_strength):
-    X = torch.tensor([[0, 0], [0, input_strength], [input_strength, 0], [input_strength, input_strength]], dtype=torch.float32)
-    Y = torch.tensor([0, 1, 1, 0], dtype=torch.float32)
-    return X, Y
-
-def generate_paper_input(dt, P=16, input_length=5, input_strength=365.0, batch_size=1, duration=2.5):
-    """Generate input sequence for the paper test."""
-    seq_len = int(duration / dt)
-    batch_size = 1
-    inputs = torch.zeros(seq_len, batch_size, P, device=device)
-    for p in range(input_length):
-        start = p * int(100e-3 / dt)
-        end = start + int(30e-3 / dt)
-        inputs[start:end, 0, p] = input_strength
-    return inputs
-
-
-
-# ---- Methods
-def simulate_paper(input_length=5, N=5000, P=16, f=0.05, dt=1e-4):
-    # Initialize model with paper parameters
-    model = PaperSTPWrapper(
-        N=N, P=P, f=f, dt=dt,
-        J_EE=8.0, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0
-    ).to(device)
-    input_strength = 365.0 # Pt. 2.3 of supplemental material
-    duration = 2.5
-    simulate_paper_with_model(model, input_strength, duration, input_length)
-
-def simulate_paper_extended(input_length=5, N_a=5000, N_b=5000, P=16, f=0.05, dt=1e-4):
-    # Initialize model with paper parameters
-    model = ExtendedSTPWrapper(
-        N_a=N_a, N_b=N_b, P=P, f=f, dt=dt,
-        J_EE=8.0, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0
-    ).to(device)
-    input_strength = 365.0 # Pt. 2.3 of supplemental material
-    duration = 2.5
-    simulate_paper_with_model(model, input_strength, duration, input_length)
-
-def simulate_cluster_stp():
-    model = ClusterSTPWrapper(P=16, f=0.05, dt=1e-4, J_EE=8.0, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, J_EI=1.1, I_b = 8.0).to(device)
-    simulate_paper_with_model(model, input_strength=225.0, duration=2.5)
-
-def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, input_length=5):
-    """Simulate the paper test with the given model and input strength, for 'duration' seconds."""
-    # Stimulation sequence
-    inputs = generate_paper_input(model.dt, model.P, input_length, input_strength, 1, duration)
-    seq_len = int(duration / model.dt)
-
-    # Plotting inputs
-    # plt.figure()
-    # for p in range(input_length):
-    #     plt.plot(inputs[:, 0, p].tolist(), label=f'Cluster {p+1}')
-    # plt.xlabel('Time (0.1ms steps)')
-    # plt.ylabel('Input')
-    # plt.legend()
-    # plt.show()
-
-    # Run simulation
-    states, outputs = model(inputs)
-    # (seq_len, state index, batch, neuron)
-    ux_traces = {p: [] for p in range(input_length)}
-    state_vars = ('h', 'u', 'x', 'h_I')
-    scalar_vars = ('h_I',)
-    per_neuron_vars = ('h', 'u', 'x')
-    state_traces = {}
-    for variable in per_neuron_vars: # Variables with per-neuron values
-        state_traces[variable] = {p: [] for p in range(input_length)}
-    for variable in scalar_vars: # Variables with scalar values
-        state_traces[variable] = []
-
-    for t in range(seq_len):
-        state = states[t]
-        for i, var in enumerate(state_vars):
-            if var in per_neuron_vars: # If variable has per-neuron values
-                var_vals = state[i][0, :]
-                for p in range(input_length):
-                    cluster_neurons = torch.zeros(model.N, dtype=torch.bool)
-                    cluster_neurons[:len(model.eta[p])] = model.eta[p].bool()
-                    # cluster_neurons = model.eta[p].bool()
-                    state_traces[var][p].append(var_vals[cluster_neurons].mean().item())
-            else: # If variable is scalar
-                state_traces[var].append(state[i].item())
-
-        u, x = state[1], state[2]
-        u_x = u[0, :] * x[0, :]
-        assert u_x.shape == (model.N,), f"u_x shape: {u_x.shape}"
-        for p in range(input_length):
-            cluster_neurons = torch.zeros(model.N, dtype=torch.bool)
-            cluster_neurons[:len(model.eta[p])] = model.eta[p].bool()
-            # cluster_neurons = model.eta[p].bool()
-            ux_traces[p].append(u_x[cluster_neurons].mean().item())
-
-    # Plot results
-    plt.figure()
-    for p in range(input_length):
-        plt.plot(ux_traces[p], label=f'Cluster {p+1}')
-    plt.xlabel(f'Time ({model.dt * 1e3}ms steps)')
-    plt.ylabel('Synaptic Efficacy (u*x)')
-    plt.legend()
-    plt.show()
-
-    # Plot state variables in a 2x2 figure
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
-    titles = ['Mean h (Cluster)', 'Mean u (Cluster)', 'Mean x (Cluster)', 'h_I']
-
-    for i, variable in enumerate(state_vars):
-        ax = axes[i // 2, i % 2]
-        if variable in per_neuron_vars:
-            for p in range(input_length):
-                ax.plot(state_traces[variable][p], label=f'Cluster {p+1}')
-        else:  # Scalar variable
-            ax.plot(state_traces[variable], label=variable)
-        ax.set_title(titles[i])
-        ax.set_xlabel('Time (0.1ms steps)')
-        ax.set_ylabel(variable)
-        ax.legend()
-
-    plt.tight_layout()
-    plt.show()
-
-def train_xor():
-    # Hyperparameters
-    N = 100
-    dt = 1e-4
-    learning_rate = 1#0.001
-    seq_len = 100 # 600
-    num_epochs = 1000
-    input_strength = 225 # TEMP
-    input_duration = 50
-
-    # Model and Optimizer
-    model = STPWrapper(N=N, in_size=2, out_size=1, dt=dt).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-
-    # Data
-    X, Y = generate_xor_data(input_strength)
-    X, Y = X.to(device), Y.to(device)
-    assert X.shape == (4, 2), f"X shape: {X.shape}"
-    x_input = torch.zeros(seq_len, 4, 2, device=device)
-    for t in range(input_duration):
-        x_input[t] = X
-
-    # Training
-    losses = []
-    for epoch in range(num_epochs):
-        optimizer.zero_grad()
-        states, outputs = model(x_input)
-        final_output = outputs[-1].squeeze(-1)
-        loss = F.binary_cross_entropy_with_logits(final_output, Y)
-        loss.backward()
-        # print(model.stp_layer.raw_J.grad) # Very small gradients...
-        optimizer.step()
-
-        losses.append(loss.item())
-        if epoch % 100 == 0:
-            print(f'Epoch {epoch}, Loss: {loss.item():.4f}')
-
-    # Plotting
-    plt.plot(losses)
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.show()
-
-if __name__ == "__main__":
-    # simulate_cluster_stp()
-    simulate_paper_extended(input_length=4, N_a=1000, N_b=50, dt=1e-3)
-    # train_xor()

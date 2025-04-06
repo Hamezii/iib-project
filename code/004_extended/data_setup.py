@@ -45,7 +45,8 @@ def pad_impulses(impulses, dt, duration, pad_end=True):
     else:
         return torch.cat((padding, impulses), dim=0)
 
-class CustomDataset(IterableDataset):
+class _CustomDataset(IterableDataset):
+    """Helper class for making an InterableDataset from an interable object"""
     def __init__(self, iterable):
         self.iterable = iterable
 
@@ -53,8 +54,13 @@ class CustomDataset(IterableDataset):
         return self.iterable
 
 def get_dataloader_from_iterable(iterable):
-    """Get a DataLoader object from an iterable object, with automatic batching disabled."""
-    dataset = CustomDataset(iterable)
+    """
+    Get a DataLoader object from an iterable object, with automatic batching disabled.
+    
+    Used for reading data for training/testing models.
+    Automatic batching is disabled so the iterable controls batch size.
+    """
+    dataset = _CustomDataset(iterable)
     # batch_size = None disables automatic batching
     # However in this case, one can just use the data generator since loader is kind of useless now
     loader = DataLoader(dataset, batch_size=None)
