@@ -53,6 +53,8 @@ try:
         loss.backward()
         optimizer.step()
 
+        # print(states)
+        # plot_impulses(states[0][:, :, :4], DT, 0) # Plot 4 neurons of h
         # plot_impulses(outputs, DT, 0)
 
         if i+1 == LEARNING_STEPS or loss < 0.01:

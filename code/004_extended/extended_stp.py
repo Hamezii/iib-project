@@ -14,6 +14,8 @@ from tqdm import tqdm
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # device = torch.device('cpu') # If just want to use cpu
 
+# Debug constants
+INHIBITORY_ON_ALL = True
 
 # --- Parametrizations
 # Adds preprocessing to network parameters before use.
@@ -69,12 +71,17 @@ class ParametrizationBlock(nn.Module):
 
 # ---- Model
 class RecurrentLayer(nn.Module):
-    def __init__(self, N=100, dt=1e-4, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, alpha=1.5, I_b=8, J_EI=1.1, J_IE=2.2, **ignored_kwargs):
+    def __init__(self, N=100, dt=1e-4, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, alpha=1.5, I_b=8, J_EI=1.1, J_IE=2.2, **kwargs):
         super().__init__()
 
         # Network parameters
         self.N = N
         self.dt = dt
+
+        self.N_in = nn.Buffer(torch.tensor(kwargs.get("N_in", N)))
+        if INHIBITORY_ON_ALL:
+            self.N_in = nn.Buffer(torch.tensor(N))
+        self.N_out = nn.Buffer(torch.tensor(kwargs.get("N_out", N)))
 
         # Fixed parameters
         self.register_buffer('U', torch.tensor(U))
@@ -118,13 +125,15 @@ class RecurrentLayer(nn.Module):
         # TODO ensure self.J non-negativity with parametrization
 
         synaptic_inputs = torch.matmul(self.J, (u * x * R).T).T
-        dh = (-h + synaptic_inputs - self.J_EI * R_I + self.I_b + I_e)/self.tau
+        # dh = (-h + synaptic_inputs - self.J_EI * R_I + self.I_b + I_e)/self.tau
+        dh = (-h + synaptic_inputs + self.I_b + I_e)/self.tau
+        dh[:, :self.N_in] -= (self.J_EI * R_I)/self.tau
         # Update facilitation variables (Equation 5)
         du = (self.U - u)/self.tau_f + self.U * (1 - u) * R
         # Update depression variables (Equation 6)
         dx = (1 - x)/self.tau_d - u * x * R
         # Update inhibitory population (Equation 7)
-        dh_I = (-h_I + self.J_IE * torch.sum(R, dim=1, keepdim=True))/self.tau
+        dh_I = (-h_I + self.J_IE * torch.sum(R[:, :self.N_in], dim=1, keepdim=True))/self.tau
 
         # Check for NaNs in intermediate variables
         if torch.isnan(dh).any() or torch.isnan(du).any() or torch.isnan(dx).any() or torch.isnan(dh_I).any():
@@ -153,11 +162,13 @@ class STPWrapper(nn.Module):
         self.N = N
         self.dt = dt
 
-        self.N_input = nn.Buffer(torch.tensor(stp_kwargs.get("N_input", N)))
-        self.N_output = nn.Buffer(torch.tensor(stp_kwargs.get("N_output", N)))
-        self.input_layer = nn.Linear(in_size, self.N_input, bias=False)
+        stp_kwargs["N_in"] = stp_kwargs.get("N_in", N)
+        stp_kwargs["N_out"] = stp_kwargs.get("N_out", N)
+        self.N_in = nn.Buffer(torch.tensor(stp_kwargs["N_in"]))
+        self.N_out = nn.Buffer(torch.tensor(stp_kwargs["N_out"]))
+        self.input_layer = nn.Linear(in_size, self.N_in, bias=False)
         self.stp_layer = RecurrentLayer(N=N, dt=dt, **stp_kwargs)
-        self.output_layer = nn.Linear(self.N_output, out_size, bias=False)
+        self.output_layer = nn.Linear(self.N_out, out_size, bias=False)
 
         self.initialize_parameters()
 
@@ -180,7 +191,12 @@ class STPWrapper(nn.Module):
         h_I = torch.zeros(batch_size, 1, device=inp.device)
         state = (h, u, x, h_I)
         # Run through STP dynamics
-        states = []
+        all_h = torch.zeros(seq_len, batch_size, self.N, device=inp.device)
+        all_u = torch.zeros(seq_len, batch_size, self.N, device=inp.device)
+        all_x = torch.zeros(seq_len, batch_size, self.N, device=inp.device)
+        all_h_I = torch.zeros(seq_len, batch_size, 1, device=inp.device)
+        states = [all_h, all_u, all_x, all_h_I]
+        # states = []
         outputs = torch.zeros(seq_len, batch_size, self.out_size, device=inp.device)
         # outputs = []
         if step_hook_func is not None:
@@ -189,13 +205,14 @@ class STPWrapper(nn.Module):
         with parametrize.cached(): # Cache paramtrization calls for faster processing
             for t in range(seq_len):
                 I_e = self.input_layer(inp[t])
-                # I_e.shape = (batch_size, N_input)
-                I_e = F.pad(I_e, (0, self.N - self.N_input))
+                # I_e.shape = (batch_size, N_in)
+                I_e = F.pad(I_e, (0, self.N - self.N_in))
                 state = self.stp_layer(state, I_e)
-                states.append(state)
-
+                for s_id, all_s in enumerate(states):
+                    all_s[t, :, :] = state[s_id]
+                # states.append(state)
                 # Add to outputs
-                out_slice = state[0][:, -self.N_output:]
+                out_slice = state[0][:, -self.N_out:]
                 output = self.output_layer(self.stp_layer.compute_R(out_slice))
                 outputs[t, :, :] = output
                 # outputs.append(output)
@@ -247,7 +264,7 @@ class ExtendedSTPWrapper(STPWrapper):
         self.eta = initialize_eta(P, N_a, f, random=True)
         self.J_orig = compute_connection_matrix(self.eta, J_EE)
 
-        super().__init__(N=self.N, in_size=P, out_size=out_size, N_input=N_a, N_output=N_b, **kwargs)
+        super().__init__(N=self.N, in_size=P, out_size=out_size, N_in=N_a, N_out=N_b, **kwargs)
 
     def initialize_parameters(self):
         trainable_B = False
