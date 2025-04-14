@@ -65,9 +65,9 @@ try:
         loss = loss_func(outputs_averaged, target)
         print(f"Step {i}, loss = {loss}")
 
-        # TODO grad checking: could take difference in param weights
-        # "Taking maximum absolute change"
-        # Could add sequence to file for 
+        # TODO grad checking:
+        # Could add time sequence of gradients to file,
+        # or even absolute weight changes due to optimizer intricacies.
         optimizer.zero_grad()
         loss.backward()
         for param in model.parameters():
