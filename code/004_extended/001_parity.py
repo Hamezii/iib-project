@@ -8,7 +8,7 @@ import train_parity
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-BATCH_SIZE = 8
+# Model values
 P = 2
 f = 0.4
 
@@ -17,18 +17,26 @@ DT = 1e-3
 DURATION = 1.5 #s
 AVG_OVER_LAST = 0.2 #s
 
-PARITY_IMPULSES = 1
+# Input data
+PARITY_IMPULSES = 2
+BATCH_SIZE = 2 ** PARITY_IMPULSES
+FIXED_DATA = True
 
+# Learning
 LEARNING_STEPS = 200
-LEARNING_RATE = 1e-3
-# TODO Try making B weights learnable
-model = ExtendedSTPWrapper(N_a=100, N_b=100, P=P, f=f, out_size=P, dt=DT).to(device)
+LEARNING_RATE = 5e-3
+EPOCH_STEPS = 1
 
-data_iter = train_parity.ParityDataGenerator(BATCH_SIZE, PARITY_IMPULSES)
+model = ExtendedSTPWrapper(N_a=40, N_b=40, P=P, f=f, out_size=P, dt=DT).to(device)
+
+data_iter = train_parity.ParityDataGenerator(BATCH_SIZE, PARITY_IMPULSES, FIXED_DATA)
 parity_dataloader = get_dataloader_from_iterable(data_iter)
 
 loss_func = nn.CrossEntropyLoss().to(device)
 optimizer = optim.Adam(params=model.parameters(), lr=LEARNING_RATE)
+
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+accumulated_loss = 0
 
 try:
     for i, (inp_seq, target) in enumerate(parity_dataloader):
@@ -54,6 +62,11 @@ try:
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
+        accumulated_loss += loss.item()
+        if i+1 % EPOCH_STEPS == 0:
+            scheduler.step(accumulated_loss)
+            accumulated_loss = 0
 
         # print(states)
         # plot_impulses(states[0][:, :, :4], DT, 0) # Plot 4 neurons of h
