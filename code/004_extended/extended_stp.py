@@ -15,7 +15,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # device = torch.device('cpu') # If just want to use cpu
 
 # Debug constants
-INHIBITORY_ON_ALL = True
+INHIBITORY_ON_ALL = False
 
 # --- Parametrizations
 # Adds preprocessing to network parameters before use.
@@ -53,7 +53,6 @@ class ParametrizationReLU(nn.Module): # Used for constraining non-negative matri
     def right_inverse(self, A):
         return torch.clamp(A, 0)
 
-
 class ParametrizationBlock(nn.Module):
     """Create matrix block from 4 submatrices."""
     def __init__(self, M_11, M_12, M_21, M_22):
@@ -68,6 +67,7 @@ class ParametrizationBlock(nn.Module):
             torch.hstack((self.M_11, self.M_12)),
             torch.hstack((self.M_21, self.M_22))
         ))
+
 
 # ---- Model
 class RecurrentLayer(nn.Module):
@@ -127,7 +127,7 @@ class RecurrentLayer(nn.Module):
             dh = (-h + synaptic_inputs - self.J_EI * R_I + self.I_b + I_e)/self.tau
         else:
             dh = (-h + synaptic_inputs + self.I_b + I_e)/self.tau
-            dh = dh - (self.J_EI * R_I)[:, :self.N_in]/self.tau
+            dh[:, :self.N_in] = dh[:, :self.N_in] - (self.J_EI * R_I)/self.tau
 
         # Update facilitation variables (Equation 5)
         du = (self.U - u)/self.tau_f + self.U * (1 - u) * R
