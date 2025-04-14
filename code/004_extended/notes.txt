@@ -5,3 +5,5 @@ N_a=100, N_b=100, f=0.4:
 
 C Sparsity 0.1 > 0.2, C std 1 > 0.5
 003: Didn't learn properly
+
+004: 1 length, global inhibitory, no positive constraint

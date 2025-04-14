@@ -114,26 +114,30 @@ class RecurrentLayer(nn.Module):
             u_x: Synaptic efficacies of size (batch_size x N)
         
         """
-        # TODO Consider flipping dimensions of state variables? Currently (batch_size, N)
+        # Note: J_ij is the synaptic weight from neuron j to neuron i
+        # State variable dimensions (batch_size, N)
         h, u, x, h_I = state
 
         R = self.compute_R(h)
         R_I = self.compute_R(h_I)
 
         # Update synaptic currents (Equation 4)
-        # Note: J_ij is the synaptic weight from neuron j to neuron i
-        # TODO ensure self.J non-negativity with parametrization
-
         synaptic_inputs = torch.matmul(self.J, (u * x * R).T).T
-        # dh = (-h + synaptic_inputs - self.J_EI * R_I + self.I_b + I_e)/self.tau
-        dh = (-h + synaptic_inputs + self.I_b + I_e)/self.tau
-        dh[:, :self.N_in] -= (self.J_EI * R_I)/self.tau
+        if INHIBITORY_ON_ALL:
+            dh = (-h + synaptic_inputs - self.J_EI * R_I + self.I_b + I_e)/self.tau
+        else:
+            dh = (-h + synaptic_inputs + self.I_b + I_e)/self.tau
+            dh = dh - (self.J_EI * R_I)[:, :self.N_in]/self.tau
+
         # Update facilitation variables (Equation 5)
         du = (self.U - u)/self.tau_f + self.U * (1 - u) * R
         # Update depression variables (Equation 6)
         dx = (1 - x)/self.tau_d - u * x * R
         # Update inhibitory population (Equation 7)
-        dh_I = (-h_I + self.J_IE * torch.sum(R[:, :self.N_in], dim=1, keepdim=True))/self.tau
+        if INHIBITORY_ON_ALL:
+            dh_I = (-h_I + self.J_IE * torch.sum(R, dim=1, keepdim=True))/self.tau
+        else:
+            dh_I = (-h_I + self.J_IE * torch.sum(R[:, :self.N_in], dim=1, keepdim=True))/self.tau
 
         # Check for NaNs in intermediate variables
         if torch.isnan(dh).any() or torch.isnan(du).any() or torch.isnan(dx).any() or torch.isnan(dh_I).any():
@@ -271,10 +275,10 @@ class ExtendedSTPWrapper(STPWrapper):
 
         trainable_J_11 = False
         trainable_J_2X = True
-        positive_J_2X = True
+        positive_J_2X = False
 
         trainable_C = True
-        positive_C = True
+        positive_C = False
         C_sparsity = 0.1
         C_std = 1
         # Extended J matrix with quadrants (N x N)

@@ -10,18 +10,19 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 BATCH_SIZE = 8
 P = 2
+f = 0.4
 
 # Times
 DT = 1e-3
 DURATION = 1.5 #s
 AVG_OVER_LAST = 0.2 #s
 
-PARITY_IMPULSES = 2
+PARITY_IMPULSES = 1
 
 LEARNING_STEPS = 200
 LEARNING_RATE = 1e-3
 # TODO Try making B weights learnable
-model = ExtendedSTPWrapper(N_a=100, N_b=100, P=P, f=0.4, out_size=2, dt=DT).to(device)
+model = ExtendedSTPWrapper(N_a=100, N_b=100, P=P, f=f, out_size=P, dt=DT).to(device)
 
 data_iter = train_parity.ParityDataGenerator(BATCH_SIZE, PARITY_IMPULSES)
 parity_dataloader = get_dataloader_from_iterable(data_iter)
@@ -39,6 +40,7 @@ try:
         #     print(p.device)
         states, outputs = model(inp)
         # outputs shape [time x batch x channel]
+        outputs = outputs[:, :, :2]
 
         avg_idx = int(AVG_OVER_LAST / DT)
         outputs_averaged = torch.mean(outputs[-avg_idx:, :, :], dim=0)
