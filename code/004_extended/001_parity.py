@@ -1,5 +1,5 @@
 # TODO Plot loss vs time step
-# TODO Get readout of tsodyks network
+# TODO Get readout of tsodyks network, to check its working correctly
 # TODO Run on SSH
 
 import torch
@@ -32,7 +32,7 @@ LEARNING_STEPS = 400 # TODO increase, can use SSH clusters
 LEARNING_RATE = 1e-3
 EPOCH_STEPS = 2
 
-model = ExtendedSTPWrapper(N_a=40, N_b=100, P=P, f=f, out_size=P, dt=DT).to(device)
+model = ExtendedSTPWrapper(N_a=100, N_b=100, P=P, f=f, out_size=P, dt=DT).to(device)
 
 data_iter = train_parity.ParityDataGenerator(BATCH_SIZE, PARITY_IMPULSES, FIXED_DATA)
 parity_dataloader = get_dataloader_from_iterable(data_iter)
@@ -71,7 +71,7 @@ try:
         optimizer.zero_grad()
         loss.backward()
         for param in model.parameters():
-            assert param is nn.Parameter
+            ...
 
         optimizer.step()
 
