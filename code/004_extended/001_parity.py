@@ -1,3 +1,6 @@
+# TODO Plot loss vs time step
+# TODO Get readout of tsodyks network
+# TODO Run on SSH
 
 import torch
 from torch import nn, optim
@@ -14,7 +17,9 @@ f = 0.4
 
 # Times
 DT = 1e-3
-DURATION = 1.5 #s
+DURATION = 1.5 #s   # TODO Could try lowering this to see if it is able to work for shorter lengths
+# Could also try with more elements and shorter time period
+# DURATION = 0.13 + 0.2
 AVG_OVER_LAST = 0.2 #s
 
 # Input data
@@ -23,11 +28,11 @@ BATCH_SIZE = 2 ** PARITY_IMPULSES
 FIXED_DATA = True
 
 # Learning
-LEARNING_STEPS = 200
-LEARNING_RATE = 5e-3
-EPOCH_STEPS = 1
+LEARNING_STEPS = 400 # TODO increase, can use SSH clusters
+LEARNING_RATE = 1e-3
+EPOCH_STEPS = 2
 
-model = ExtendedSTPWrapper(N_a=40, N_b=40, P=P, f=f, out_size=P, dt=DT).to(device)
+model = ExtendedSTPWrapper(N_a=40, N_b=100, P=P, f=f, out_size=P, dt=DT).to(device)
 
 data_iter = train_parity.ParityDataGenerator(BATCH_SIZE, PARITY_IMPULSES, FIXED_DATA)
 parity_dataloader = get_dataloader_from_iterable(data_iter)
@@ -56,11 +61,18 @@ try:
         # TEMP fixing target
         # target = torch.ones_like(target)
 
+        # TODO could try error from target instead
         loss = loss_func(outputs_averaged, target)
         print(f"Step {i}, loss = {loss}")
 
+        # TODO grad checking: could take difference in param weights
+        # "Taking maximum absolute change"
+        # Could add sequence to file for 
         optimizer.zero_grad()
         loss.backward()
+        for param in model.parameters():
+            assert param is nn.Parameter
+
         optimizer.step()
 
         accumulated_loss += loss.item()
