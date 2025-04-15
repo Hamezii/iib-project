@@ -10,3 +10,10 @@ C Sparsity 0.1 > 0.2, C std 1 > 0.5
 005: ", P=2, f=0.4
 006: Test with length 2, Na=40, Nb=100. Added scheduler. Only inhibitory on input neurons.
 007: Na=100, Nb=100, training steps=400: Near zero error! But almost identical output?
+Try with length 4:
+At step 100 levelling out to 0.69 error, i.e. balanced output
+Switching to Na=100, Nb=1000:
+Bouncing between ~2 to ~60 error for first 100 steps.
+Stagnates 3-10 error.
+Maybe learning rate needs to be scaled with neuron count?
+008: Now trying with length 3, still didn't get good results, around 10 error
