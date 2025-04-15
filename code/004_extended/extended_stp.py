@@ -21,7 +21,7 @@ INHIBITORY_ON_ALL = False
 # Adds preprocessing to network parameters before use.
 # Useful since parameter training domain is unconstrained.
 # Usage:
-#  parametrize.register_parametrization(module, "parameter", ParametrizationReLU(positive=True))
+#  parametrize.register_parametrization(module, "parameter", ParametrizationReLU())
 class ParametrizationSoftplus(nn.Module): # NOTE not currently used.
     """Enforce sign of module parameter by using softplus."""
     softplus = nn.Softplus(beta=1.0/0.2) # alpha of 0.2, very close to ReLU
@@ -42,14 +42,12 @@ class ParametrizationSoftplus(nn.Module): # NOTE not currently used.
 class ParametrizationReLU(nn.Module): # Used for constraining non-negative matrix weights
     """Enforce sign of module parameter by using ReLU."""
     relu = nn.ReLU()
-    def __init__(self, positive=True):
+    def __init__(self):
         super().__init__()
-        self.positive = positive
+
     def forward(self, X):
-        if self.positive:
-            return self.relu(X)
-        else:
-            return -self.relu(-X)
+        return self.relu(X)
+
     def right_inverse(self, A):
         return torch.clamp(A, 0)
 
@@ -284,15 +282,15 @@ class ExtendedSTPWrapper(STPWrapper):
         # Extended J matrix with quadrants (N x N)
         self.J_11 = nn.Parameter(self.J_orig.clone().detach(), requires_grad=trainable_J_11)
         if trainable_J_11:
-            parametrize.register_parametrization(self, "J_11", ParametrizationReLU(positive=True))
+            parametrize.register_parametrization(self, "J_11", ParametrizationReLU())
         # Zero feedback from comp neurons to base neurons:
         self.J_12 = nn.Buffer(torch.zeros(self.N_a, self.N_b))
         # Computational neuron weights
         self.J_21 = nn.Parameter(torch.zeros(self.N_b, self.N_a), requires_grad=trainable_J_2X)
         self.J_22 = nn.Parameter(torch.zeros(self.N_b, self.N_b), requires_grad=trainable_J_2X)
         if positive_J_2X:
-            parametrize.register_parametrization(self, "J_21", ParametrizationReLU(positive=True))
-            parametrize.register_parametrization(self, "J_22", ParametrizationReLU(positive=True))
+            parametrize.register_parametrization(self, "J_21", ParametrizationReLU())
+            parametrize.register_parametrization(self, "J_22", ParametrizationReLU())
         # Xavier/Glorot init is better suited for sigmoid/tanh activations.
         # Have ReLU-adjacent activation, so using He/Kaiming initialization.
         # This initialization considers number of inputs, but there might be orientation mismatch.
@@ -325,7 +323,7 @@ class ExtendedSTPWrapper(STPWrapper):
         self.input_layer.weight = self.B_1
         # self.input_layer.weight = nn.Parameter(torch.vstack((self.B_1, self.B_2)))
         if trainable_B: # Assumes always positive B
-            parametrize.register_parametrization(self, "B_1", ParametrizationReLU(positive=True))
+            parametrize.register_parametrization(self, "B_1", ParametrizationReLU())
 
         # Output layer (P x N_b)
         self.C_2 = nn.Parameter(torch.zeros(self.P, self.N_b), requires_grad=trainable_C)
@@ -336,7 +334,7 @@ class ExtendedSTPWrapper(STPWrapper):
         self.output_layer.weight = self.C_2
         # self.output_layer.weight = nn.Parameter(torch.hstack((self.C_1, self.C_2)))
         if positive_C:
-            parametrize.register_parametrization(self, "C_2", ParametrizationReLU(positive=True))
+            parametrize.register_parametrization(self, "C_2", ParametrizationReLU())
 
 class ClusterSTPWrapper(STPWrapper):
     """
