@@ -1,6 +1,5 @@
 # TODO Plot loss vs time step
 # TODO Get readout of tsodyks network, to check its working correctly
-# TODO Run on SSH
 
 import torch
 from torch import nn, optim
@@ -8,6 +7,10 @@ from extended_stp import *
 from plotting import *
 from data_setup import *
 import train_parity
+
+OUT_DIR = input("Out Dir OUT/<name>/: ")
+if OUT_DIR:
+    OUT_DIR = OUT_DIR + "/"
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -17,22 +20,22 @@ f = 0.4
 
 # Times
 DT = 1e-3
-DURATION = 1.5 #s   # TODO Could try lowering this to see if it is able to work for shorter lengths
+DURATION = 1.0 #s   # TODO Could try lowering this to see if it is able to work for shorter lengths
 # Could also try with more elements and shorter time period
 # DURATION = 0.13 + 0.2
 AVG_OVER_LAST = 0.2 #s
 
 # Input data
-PARITY_IMPULSES = 2
+PARITY_IMPULSES = 3
 BATCH_SIZE = 2 ** PARITY_IMPULSES
 FIXED_DATA = True
 
 # Learning
-LEARNING_STEPS = 400 # TODO increase, can use SSH clusters
+LEARNING_STEPS = 5000
 LEARNING_RATE = 1e-3
 EPOCH_STEPS = 2
 
-model = ExtendedSTPWrapper(N_a=100, N_b=100, P=P, f=f, out_size=P, dt=DT).to(device)
+model = ExtendedSTPWrapper(N_a=100, N_b=200, P=P, f=f, out_size=P, dt=DT).to(device)
 
 data_iter = train_parity.ParityDataGenerator(BATCH_SIZE, PARITY_IMPULSES, FIXED_DATA)
 parity_dataloader = get_dataloader_from_iterable(data_iter)
@@ -42,6 +45,14 @@ optimizer = optim.Adam(params=model.parameters(), lr=LEARNING_RATE)
 
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer)
 accumulated_loss = 0
+
+def plot_responses():
+    for b in range(BATCH_SIZE):
+        inp_string = "".join(str(int(a)) for a in inp_seq[b])
+        print(f"Batch {b} input: {inp_seq[b]}")
+        plot_impulses(outputs, DT, b, 
+                      title=f"Input: {inp_string}",
+                      save= None if (not OUT_DIR) else OUT_DIR + inp_string)
 
 try:
     for i, (inp_seq, target) in enumerate(parity_dataloader):
@@ -85,10 +96,7 @@ try:
         # plot_impulses(outputs, DT, 0)
 
         if i+1 == LEARNING_STEPS or loss < 0.01:
-            for b in range(BATCH_SIZE):
-                print(f"Batch {b} input: {inp_seq[b]}")
-                plot_impulses(outputs, DT, b)
+            plot_responses()
             break
 except KeyboardInterrupt:
-    print(f"Batch 0 input: {inp_seq[0]}")
-    plot_impulses(outputs, DT, 0)
+    plot_responses()
