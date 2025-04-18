@@ -17,3 +17,4 @@ Bouncing between ~2 to ~60 error for first 100 steps.
 Stagnates 3-10 error.
 Maybe learning rate needs to be scaled with neuron count?
 008: Now trying with length 3, still didn't get good results, around 10 error
+009: Trying 0.5 second duration: it works
