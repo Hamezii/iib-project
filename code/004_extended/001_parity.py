@@ -37,7 +37,7 @@ FIXED_DATA = True
 # Learning
 LEARNING_STEPS = 5000
 LEARNING_RATE = 1e-3
-EPOCH_STEPS = 2
+EPOCH_STEPS = 1
 
 model = ExtendedSTPWrapper(N_a=100, N_b=200, P=P, f=f, out_size=P, dt=DT).to(device)
 
