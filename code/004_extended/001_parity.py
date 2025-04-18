@@ -1,6 +1,7 @@
 # TODO Plot loss vs time step
 # TODO Get readout of tsodyks network, to check its working correctly
 
+import os
 import torch
 from torch import nn, optim
 from extended_stp import *
@@ -8,9 +9,12 @@ from plotting import *
 from data_setup import *
 import train_parity
 
-OUT_DIR = input("Out Dir OUT/<name>/: ")
-if OUT_DIR:
-    OUT_DIR = OUT_DIR + "/"
+OUT_DIR = "OUT/"
+SAVE_DIR = input("Save to OUT/<name>/ (leave empty for no saving): ")
+if SAVE_DIR:
+    SAVE_DIR = OUT_DIR + SAVE_DIR + "/"
+    directory = os.path.dirname(SAVE_DIR)
+    os.makedirs(directory, exist_ok=True)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -52,7 +56,7 @@ def plot_responses():
         print(f"Batch {b} input: {inp_seq[b]}")
         plot_impulses(outputs, DT, b, 
                       title=f"Input: {inp_string}",
-                      save= None if (not OUT_DIR) else OUT_DIR + inp_string)
+                      save= None if (not SAVE_DIR) else SAVE_DIR + inp_string)
 
 try:
     for i, (inp_seq, target) in enumerate(parity_dataloader):

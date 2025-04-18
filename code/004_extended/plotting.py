@@ -1,7 +1,6 @@
 # Helper functions for plotting things
 import torch
 import matplotlib.pyplot as plt
-import os
 
 VERBOSE = False
 
@@ -11,7 +10,6 @@ def plot_impulses(impulses, dt, batch_id, y_label="Input", title=None, show=True
     
     Assumes impulses don't include 0 time step.
     """
-    SAVE_DIR = "OUT/"
     input_len, batch_size, channels = impulses.shape
     # NOTE Need to be careful with times indexes.
     times_ms = torch.linspace(0, (input_len-1) * dt * 1e3, input_len)
@@ -34,13 +32,9 @@ def plot_impulses(impulses, dt, batch_id, y_label="Input", title=None, show=True
     plt.grid(alpha=0.15)
     plt.legend()
     if save is not None:
-        save_path = SAVE_DIR + save
-        directory = os.path.dirname(save_path)
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-        plt.savefig(save_path)
+        plt.savefig(save)
         if VERBOSE:
-            print(save_path)
+            print(f"Saving to {save}")
     if show:
         plt.show()
     plt.close()
