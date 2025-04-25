@@ -4,11 +4,10 @@ import matplotlib.pyplot as plt
 
 VERBOSE = False
 
-# TODO add dt
 def plot_impulses(impulses, dt, batch_id, y_label="Input", title=None, show=True, save=None):
     """Plot impulses (time_i, batch_size, channels).
     
-    Assumes impulses don't include 0 time step.
+    Assumes impulses don't include last time step.
     """
     input_len, batch_size, channels = impulses.shape
     # NOTE Need to be careful with times indexes.
