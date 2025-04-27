@@ -17,9 +17,12 @@ def simulate_paper(input_length=5, N=5000, P=16, f=0.05, dt=1e-4):
 def simulate_paper_extended(input_length=5, N_a=5000, N_b=5000, P=16, f=0.05,
                             dt=1e-4, duration=2.5, input_strength=365.0, **kwargs):
     # Initialize model with paper parameters
+    defaults = {
+        'J_EE': 8.0, 'U': 0.3, 'tau': 8e-3, 'tau_f': 1.5, 'tau_d': 0.3,
+        'J_IE': 1.75, 'I_b': 8.0
+    }
     model = ExtendedSTPWrapper(
-        N_a=N_a, N_b=N_b, P=P, f=f, dt=dt,
-        J_EE=8.0, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0, **kwargs
+        N_a=N_a, N_b=N_b, P=P, f=f, dt=dt, **{**defaults, **kwargs}
     ).to(device)
     simulate_paper_with_model(model, input_strength, duration, input_length)
 
@@ -106,5 +109,5 @@ if __name__ == "__main__":
     # 001_parity model 04/27: Clusters firing in sync, not correct
     # simulate_paper_extended(P=2, f=0.4, input_length=2, N_a=100, N_b=200, dt=1e-3, duration=1.0)
     # Testing better values: correct firing
-    simulate_paper_extended(P=16, f=0.05, input_length=2, N_a=1000, N_b=200, dt=1e-3, duration=1.0)
+    simulate_paper_extended(P=2, f=0.05, input_length=2, N_a=1000, N_b=200, dt=1e-3, duration=1.0)
     # train_xor()
