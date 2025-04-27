@@ -7,7 +7,7 @@ from torch import nn, optim
 from extended_stp import *
 from plotting import *
 from data_setup import *
-import train_parity
+import data_gen
 
 OUT_DIR = "OUT/"
 SAVE_DIR = input("Save to OUT/<name>/ (leave empty for no saving): ")
@@ -41,7 +41,7 @@ EPOCH_STEPS = 1
 
 model = ExtendedSTPWrapper(N_a=100, N_b=200, P=P, f=f, out_size=P, dt=DT).to(device)
 
-data_iter = train_parity.ParityDataGenerator(BATCH_SIZE, PARITY_IMPULSES, FIXED_DATA)
+data_iter = data_gen.ParityDataGenerator(BATCH_SIZE, PARITY_IMPULSES, FIXED_DATA)
 parity_dataloader = get_dataloader_from_iterable(data_iter)
 
 loss_func = nn.CrossEntropyLoss().to(device)

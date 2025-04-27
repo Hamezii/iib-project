@@ -1,4 +1,4 @@
-# Methods for generating data for parity task
+# Methods for generating data
 import torch
 from torch.utils.data import DataLoader, IterableDataset
 from itertools import product
