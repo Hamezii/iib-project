@@ -27,3 +27,31 @@ class ParityDataGenerator:
         assert seq.shape == (self.batch_size, self.seq_length), seq.shape
         assert parity.shape == (self.batch_size,), parity.shape
         return seq, parity
+
+class SequenceMemoryDataGenerator:
+    """Iterable that generates random sequence memory training data"""
+    def __init__(self, batch_size, seq_length, channels):
+        self.batch_size = batch_size
+        self.seq_length = seq_length
+        self.channls = channels
+
+    def __next__(self):
+        """Returns sequence, test item, and the item following it in the sequence.
+        
+        Each element in the sequence is a unique number from 0 to channels-1
+        The test item is a random element from the sequence (not last).
+        The target is the next item in the sequence after the test item.
+        """
+        # 
+        seq = torch.zeros((self.batch_size, self.seq_length), dtype=torch.long).to(device)
+        test = torch.zeros(self.batch_size, dtype=torch.long).to(device)
+        target = torch.zeros(self.batch_size, dtype=torch.long).to(device)
+
+        for b in range(self.batch_size):
+            shuffled = torch.randperm(self.channls)
+            seq[b, :] = shuffled[:self.seq_length]
+            test_id = torch.randint(0, self.seq_length-1, (1,)).item()
+            test[b] = seq[b, test_id]
+            target[b] = seq[b, test_id + 1]
+
+        return seq, test, target
