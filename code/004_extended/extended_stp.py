@@ -326,8 +326,8 @@ class ExtendedSTPWrapper(STPWrapper):
             parametrize.register_parametrization(self, "B_1", ParametrizationReLU())
 
         # Output layer (P x N_b)
-        self.C_2 = nn.Parameter(torch.zeros(self.P, self.N_b), requires_grad=trainable_C)
-        # self.C_1 = torch.zeros(self.P, self.N_a, requires_grad=False)
+        self.C_2 = nn.Parameter(torch.zeros(self.out_size, self.N_b), requires_grad=trainable_C)
+        # self.C_1 = torch.zeros(self.out_size, self.N_a, requires_grad=False)
         # Consider using nn.init.sparse_() or nn.init.kaiming_normal():
         nn.init.sparse_(self.C_2, sparsity=C_sparsity, std=C_std)
         # nn.init.kaiming_normal_(self.C_2, nonlinearity="relu")
