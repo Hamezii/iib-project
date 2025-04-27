@@ -14,13 +14,13 @@ def simulate_paper(input_length=5, N=5000, P=16, f=0.05, dt=1e-4):
     duration = 2.5
     simulate_paper_with_model(model, input_strength, duration, input_length)
 
-def simulate_paper_extended(input_length=5, N_a=5000, N_b=5000, P=16, f=0.05, dt=1e-4):
+def simulate_paper_extended(input_length=5, N_a=5000, N_b=5000, P=16, f=0.05, dt=1e-4, **kwargs):
     # Initialize model with paper parameters
     model = ExtendedSTPWrapper(
         N_a=N_a, N_b=N_b, P=P, f=f, dt=dt,
-        J_EE=8.0, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0
+        J_EE=8.0, U=0.3, tau=8e-3, tau_f=1.5, tau_d=0.3, J_IE=1.75, I_b = 8.0, **kwargs
     ).to(device)
-    input_strength = 365.0 # Pt. 2.3 of supplemental material
+    input_strength = 225.0 #365.0 # Pt. 2.3 of supplemental material
     duration = 2.5
     simulate_paper_with_model(model, input_strength, duration, input_length)
 
@@ -38,50 +38,37 @@ def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, in
 
     # Run simulation
     states, outputs = model(inputs)
-    # (seq_len, state index, batch, neuron)
-    ux_traces = {p: [] for p in range(input_length)}
-    state_vars = ('h', 'u', 'x', 'h_I')
-    scalar_vars = ('h_I',)
-    per_neuron_vars = ('h', 'u', 'x')
+    # (state index, seq_length, batch, neuron)
+
+    # TODO Fixing cluster plotting
     state_traces = {}
-    for variable in per_neuron_vars: # Variables with per-neuron values
-        state_traces[variable] = {p: [] for p in range(input_length)}
-    for variable in scalar_vars: # Variables with scalar values
-        state_traces[variable] = []
+    state_vars = ('h', 'u', 'x', 'h_I')
+    per_neuron_vars = ('h', 'u', 'x')
 
-    for t in range(seq_len):
-        state = states[t]
-        for i, var in enumerate(state_vars):
-            if var in per_neuron_vars: # If variable has per-neuron values
-                var_vals = state[i][0, :]
-                for p in range(input_length):
-                    cluster_neurons = torch.zeros(model.N, dtype=torch.bool)
-                    cluster_neurons[:len(model.eta[p])] = model.eta[p].bool()
-                    # cluster_neurons = model.eta[p].bool()
-                    state_traces[var][p].append(var_vals[cluster_neurons].mean().item())
-            else: # If variable is scalar
-                state_traces[var].append(state[i].item())
+    cluster_neurons = torch.zeros(input_length, model.N, dtype=torch.bool)
+    for p in range(input_length):
+        cluster_neurons[p, :len(model.eta[p])] = model.eta[p].bool()
 
-        u, x = state[1], state[2]
-        u_x = u[0, :] * x[0, :]
-        assert u_x.shape == (model.N,), f"u_x shape: {u_x.shape}"
+    for i, variable in enumerate(per_neuron_vars): # Variables with per-neuron values
+        var_vals = states[i][:, 0, :] # [seq_len x neuron]
+        state_traces[variable] = torch.zeros(input_length, seq_len)
         for p in range(input_length):
-            cluster_neurons = torch.zeros(model.N, dtype=torch.bool)
-            cluster_neurons[:len(model.eta[p])] = model.eta[p].bool()
-            # cluster_neurons = model.eta[p].bool()
-            ux_traces[p].append(u_x[cluster_neurons].mean().item())
+            state_traces[variable][p, :] = torch.mean(var_vals[:, cluster_neurons[p]], dim=1)
+        state_traces[variable] = state_traces[variable].tolist()
+
+    state_traces['h_I'] = states[3][:, 0].tolist()
+
+    ux_traces = torch.zeros(input_length, seq_len)
+    u, x = states[1], states[2]
+    u_x = u[:, 0, :] * x[:, 0, :]
+    for p in range(input_length):
+        ux_traces[p, :] = torch.mean(u_x[:, cluster_neurons[p]], dim=1)
+    ux_traces = ux_traces.tolist()
+
 
     # Plot results
-    plt.figure()
-    for p in range(input_length):
-        plt.plot(ux_traces[p], label=f'Cluster {p+1}')
-    plt.xlabel(f'Time ({model.dt * 1e3}ms steps)')
-    plt.ylabel('Synaptic Efficacy (u*x)')
-    plt.legend()
-    plt.show()
-
+    fig, axes = plt.subplots(3, 2, figsize=(12, 12))
     # Plot state variables in a 2x2 figure
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
     titles = ['Mean h (Cluster)', 'Mean u (Cluster)', 'Mean x (Cluster)', 'h_I']
 
     for i, variable in enumerate(state_vars):
@@ -96,6 +83,17 @@ def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, in
         ax.set_ylabel(variable)
         ax.legend()
 
+    # Plot ux
+    ax = axes[2, 0]
+    for p in range(input_length):
+        ax.plot(ux_traces[p], label=f'Cluster {p+1}')
+    ax.set_xlabel(f'Time ({model.dt * 1e3}ms steps)')
+    ax.set_ylabel('Synaptic Efficacy (u*x)')
+    ax.legend()
+
+    # Hide unused plot
+    axes[2, 1].set_visible(False)
+
     plt.tight_layout()
     plt.show()
 
@@ -105,5 +103,5 @@ def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, in
 # ---- Main ----
 if __name__ == "__main__":
     # simulate_cluster_stp()
-    simulate_paper_extended(input_length=4, N_a=1000, N_b=1, dt=1e-3)
+    simulate_paper_extended(input_length=4, N_a=1000, N_b=1000, dt=1e-3)
     # train_xor()
