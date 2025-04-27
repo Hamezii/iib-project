@@ -137,14 +137,14 @@ class RecurrentLayer(nn.Module):
         else:
             dh_I = (-h_I + self.J_IE * torch.sum(R[:, :self.N_in], dim=1, keepdim=True))/self.tau
 
-        # Check for NaNs in intermediate variables
+        # Check for NaNs in state variables
         if torch.isnan(dh).any() or torch.isnan(du).any() or torch.isnan(dx).any() or torch.isnan(dh_I).any():
-            print("NaN detected in intermediate variables")
+            print("NaN detected in state variables")
             print(f"dh: {dh}")
             print(f"du: {du}")
             print(f"dx: {dx}")
             print(f"dh_I: {dh_I}")
-            return state, u * x
+            raise ValueError("NaN detected in state variables")
 
         # Euler integration step
         h_new = h + dh * self.dt
