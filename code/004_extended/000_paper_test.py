@@ -112,10 +112,11 @@ def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, in
 # ---- Main ----
 if __name__ == "__main__":
     # simulate_cluster_stp()
-    # simulate_paper_extended(input_length=4, N_a=1000, N_b=1000, dt=1e-3, input_strength=225.0)
+    # simulate_paper_extended(input_length=4, N_a=1000, N_b=1, dt=1e-3, input_strength=225.0)
     # 001_parity model 04/27: Clusters firing in sync, not correct
-    simulate_paper_extended(P=2, f=0.4, input_length=2, N_a=100, N_b=200, dt=1e-3, duration=1.0)
+    # simulate_paper_extended(P=2, f=0.4, input_length=2, N_a=100, N_b=200, dt=1e-3, duration=1.0)
     # Testing better values: correct firing
-    simulate_paper_extended(P=2, f=0.05, input_length=2, N_a=1000, N_b=200, dt=1e-3, duration=1.0)
-    simulate_paper_extended(P=2, f=0.05, input_length=[0, 1, 0], N_a=1000, N_b=200, dt=1e-3, duration=1.0)
-    # train_xor()
+    # simulate_paper_extended(P=2, f=0.05, input_length=2, N_a=1000, N_b=200, dt=1e-3, duration=1.0)
+    # simulate_paper_extended(P=2, f=0.05, input_length=[0, 1, 0], N_a=1000, N_b=200, dt=1e-3, duration=1.0)
+    # Testing I_b for exiting repeating regime:
+    simulate_paper_extended(input_length=4, N_a=1000, N_b=1, dt=1e-3, input_strength=225.0, I_b=1.5)
