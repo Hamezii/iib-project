@@ -33,10 +33,13 @@ def simulate_cluster_stp(dt=1e-3):
 def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, input_length=5):
     """Simulate the paper test with the given model and input strength, for 'duration' seconds."""
     # Stimulation sequence
-    input_idx = torch.Tensor([[*range(input_length)]])
+    if isinstance(input_length, int): # HACK to allow for 1D input
+        input_length = [*range(input_length)]
+    input_idx = torch.Tensor([input_length]).to(device)
     inputs = generate_one_hot_impulses(input_idx, model.P, model.dt, impulse_strength=input_strength)
     inputs = pad_impulses(inputs, model.dt, duration)
     seq_len = int(duration / model.dt)
+    input_length = max(input_length) + 1 # HACK to allow for 1D input
 
     # Run simulation
     states, outputs = model(inputs)
@@ -70,6 +73,7 @@ def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, in
 
     # Plot results
     fig, axes = plt.subplots(3, 2, figsize=(12, 10))
+    time_ms = torch.linspace(0, (seq_len-1) * model.dt * 1e3, seq_len).tolist()
     # Plot state variables in a 2x2 figure
     titles = ['Mean h (Cluster)', 'Mean u (Cluster)', 'Mean x (Cluster)', 'h_I']
 
@@ -77,21 +81,24 @@ def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, in
         ax = axes[i // 2, i % 2]
         if variable in per_neuron_vars:
             for p in range(input_length):
-                ax.plot(state_traces[variable][p], label=f'Cluster {p+1}')
+                ax.plot(time_ms, state_traces[variable][p], label=f'Cluster {p+1}')
         else:  # Scalar variable
-            ax.plot(state_traces[variable], label=variable)
+            ax.plot(time_ms, state_traces[variable], label=variable)
         ax.set_title(titles[i])
-        ax.set_xlabel('Time (0.1ms steps)')
+        ax.set_xlabel('Time (ms)')
         ax.set_ylabel(variable)
         ax.legend()
+        ax.grid(alpha=0.2)
 
     # Plot ux
     ax = axes[2, 0]
     for p in range(input_length):
-        ax.plot(ux_traces[p], label=f'Cluster {p+1}')
-    ax.set_xlabel(f'Time ({model.dt * 1e3}ms steps)')
+        ax.plot(time_ms, ux_traces[p], label=f'Cluster {p+1}')
+    ax.set_title('Mean u*x (Cluster)')
+    ax.set_xlabel('Time (ms)')
     ax.set_ylabel('Synaptic Efficacy (u*x)')
     ax.legend()
+    ax.grid(alpha=0.2)
 
     # Hide unused plot
     axes[2, 1].set_visible(False)
@@ -107,7 +114,8 @@ if __name__ == "__main__":
     # simulate_cluster_stp()
     # simulate_paper_extended(input_length=4, N_a=1000, N_b=1000, dt=1e-3, input_strength=225.0)
     # 001_parity model 04/27: Clusters firing in sync, not correct
-    # simulate_paper_extended(P=2, f=0.4, input_length=2, N_a=100, N_b=200, dt=1e-3, duration=1.0)
+    simulate_paper_extended(P=2, f=0.4, input_length=2, N_a=100, N_b=200, dt=1e-3, duration=1.0)
     # Testing better values: correct firing
     simulate_paper_extended(P=2, f=0.05, input_length=2, N_a=1000, N_b=200, dt=1e-3, duration=1.0)
+    simulate_paper_extended(P=2, f=0.05, input_length=[0, 1, 0], N_a=1000, N_b=200, dt=1e-3, duration=1.0)
     # train_xor()
