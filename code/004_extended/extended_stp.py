@@ -249,16 +249,17 @@ class PaperSTPWrapper(STPWrapper):
             self.output_layer.weight.copy_(self.eta)
 
 class ExtendedSTPWrapper(STPWrapper):
-    def __init__(self, N_a=1000, N_b=1000, P=16, f=0.05, J_EE=8.0, out_size=16, **kwargs):
+    def __init__(self, N_a=1000, N_b=1000, P=16, f=0.05, J_EE=8.0, out_size=16, J_divide=None, **kwargs):
         self.N_a=N_a # Number of default neurons
         self.N_b=N_b # Nunber of additional computational neurons
         self.N = N_a + N_b # NOTE self.N is the total number of neurons
 
-        # Scale connection strengths by neuron counts
-        neurons_per_cluster = int(N_a * f) # Must be the same as in the initialize_eta function
+        # Scale connection strengths
+        if J_divide is None:
+            J_divide = int(N_a * f) # Must be the same as in the initialize_eta function
         J_IE_default = 1.75
-        kwargs['J_IE'] = kwargs.get('J_IE', J_IE_default) / neurons_per_cluster
-        J_EE /= neurons_per_cluster
+        kwargs['J_IE'] = kwargs.get('J_IE', J_IE_default) / J_divide
+        J_EE /= J_divide
 
         self.P = P
         # Generate memory patterns and connectivity
