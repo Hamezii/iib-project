@@ -41,13 +41,18 @@ DURATION_TO_TEST = (INPUT_LENGTH-1)*IMPULSE_SPACING + IMPULSE_DURATION + TIME_GA
 DURATION = DURATION_TO_TEST + IMPULSE_DURATION + TIME_GAP_AFTER_TEST + AVG_OVER_LAST
 
 # Learning
+LOAD_MODEL = False # "OUT/102/model.pth"
+LEARNING = True
 LEARNING_STEPS = 5000
 LEARNING_RATE = 1e-3
 EPOCH_STEPS = 5
 MIN_LOSS = 0.1 #0.01
 
 model = ExtendedSTPWrapper(N_a=1000, N_b=1000, P=P, f=f, out_size=P, dt=DT, I_b=I_b).to(device)
-
+if LOAD_MODEL:
+    model.load_state_dict(torch.load(LOAD_MODEL))
+if not LEARNING:
+    model.eval()
 data_iter = data_gen.SequenceMemoryDataGenerator(BATCH_SIZE, INPUT_LENGTH, ALPHABET_SIZE)
 dataloader = get_dataloader_from_iterable(data_iter)
 
@@ -57,7 +62,10 @@ optimizer = optim.Adam(params=model.parameters(), lr=LEARNING_RATE)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer)
 accumulated_loss = 0
 
+# Cached data for plotting
 CACHE_inp_seq_id = None
+CACHE_test = None
+CACHE_target = None
 CACHE_inp = None
 losses = []
 
@@ -78,15 +86,17 @@ def plot_responses():
 
     for b in range(BATCH_SIZE):
         inp_string = ", ".join(str(int(a)) for a in CACHE_inp_seq_id[b])
-        print(f"Batch {b} input: {CACHE_inp_seq_id[b]}, test: {test[b]}, target: {target[b]}")
+        tst = CACHE_test[b]
+        tgt = CACHE_target[b]
+        print(f"Batch {b} input: {CACHE_inp_seq_id[b]}, test: {tst}, target: {tgt}")
         plot_impulses(outputs, DT, b,
                       y_label="Output",
-                      title=f"Input: {inp_string}, Test: {test[b]}",
-                      save= None if (not SAVE_DIR) else SAVE_DIR + inp_string+" t"+str(test[b].item())+" OUT")
+                      title=f"Input: {inp_string}, Test: {tst}",
+                      save= None if (not SAVE_DIR) else SAVE_DIR + inp_string+" t"+str(tst.item())+" OUT")
         plot_impulses(CACHE_inp[:, :, :ALPHABET_SIZE], DT, b,
                       y_label="Input",
-                      title=f"Input: {inp_string}, Test: {test[b]}",
-                      save= None if (not SAVE_DIR) else SAVE_DIR + inp_string+" t"+str(test[b].item())+" IN")
+                      title=f"Input: {inp_string}, Test: {tst}",
+                      save= None if (not SAVE_DIR) else SAVE_DIR + inp_string+" t"+str(tst.item())+" IN")
 
     # TODO saving model, don't know if this is functional
     if SAVE_DIR:
@@ -121,40 +131,38 @@ try:
         # HACK so input plot is synced with output at force close
         CACHE_inp = inp
         CACHE_inp_seq_id = inp_seq_id
-
+        CACHE_test = test
+        CACHE_target = target
 
         avg_idx = int(AVG_OVER_LAST / DT)
         outputs_averaged = torch.mean(outputs[-avg_idx:, :, :], dim=0)
 
-        # TEMP fixing target
-        # target = torch.ones_like(target)
+        # target = torch.ones_like(target) # TEMP fixing target
 
         # TODO could try error from target instead
         loss = loss_func(outputs_averaged, target)
         print(f"Step {i}, loss = {loss}")
         losses.append(loss.item())
 
-        # TODO grad checking:
-        # Could add time sequence of gradients to file,
-        # or even absolute weight changes due to optimizer intricacies.
-        optimizer.zero_grad()
-        loss.backward()
-        for param in model.parameters():
-            ...
-
-        optimizer.step()
-
-        accumulated_loss += loss.item()
-        if i+1 % EPOCH_STEPS == 0:
-            scheduler.step(accumulated_loss)
-            accumulated_loss = 0
-
-        # print(states)
-        # plot_impulses(states[0][:, :, :4], DT, 0) # Plot 4 neurons of h
-        # plot_impulses(outputs, DT, 0)
-
         if i+1 == LEARNING_STEPS or loss < MIN_LOSS:
             plot_responses()
             break
+
+        # TODO grad checking:
+        # Could add time sequence of gradients to file,
+        # or even absolute weight changes due to optimizer intricacies.
+        if LEARNING:
+            optimizer.zero_grad()
+            loss.backward()
+            for param in model.parameters():
+                ...
+
+            optimizer.step()
+
+            accumulated_loss += loss.item()
+            if i+1 % EPOCH_STEPS == 0:
+                scheduler.step(accumulated_loss)
+                accumulated_loss = 0
+
 except KeyboardInterrupt:
     plot_responses()
