@@ -59,8 +59,23 @@ accumulated_loss = 0
 
 CACHE_inp_seq_id = None
 CACHE_inp = None
+losses = []
 
 def plot_responses():
+    # Plot losses
+    plt.figure(figsize=(10, 5))
+    plt.plot(losses, label="Loss")
+    plt.xlabel("Step")
+    plt.ylabel("Loss")
+    plt.title("Loss vs Step")
+    plt.legend()
+    plt.grid(alpha=0.15)
+    plt.ylim(bottom=0)
+    plt.tight_layout()
+    if SAVE_DIR:
+        plt.savefig(SAVE_DIR + "losses.png")
+    plt.show()
+
     for b in range(BATCH_SIZE):
         inp_string = ", ".join(str(int(a)) for a in CACHE_inp_seq_id[b])
         print(f"Batch {b} input: {CACHE_inp_seq_id[b]}, test: {test[b]}, target: {target[b]}")
@@ -72,6 +87,10 @@ def plot_responses():
                       y_label="Input",
                       title=f"Input: {inp_string}, Test: {test[b]}",
                       save= None if (not SAVE_DIR) else SAVE_DIR + inp_string+" t"+str(test[b].item())+" IN")
+
+    # TODO saving model, don't know if this is functional
+    if SAVE_DIR:
+        torch.save(model.state_dict(), SAVE_DIR + "model.pth")
 
 try:
     for i, (inp_seq_id, test, target) in enumerate(dataloader):
@@ -113,6 +132,7 @@ try:
         # TODO could try error from target instead
         loss = loss_func(outputs_averaged, target)
         print(f"Step {i}, loss = {loss}")
+        losses.append(loss.item())
 
         # TODO grad checking:
         # Could add time sequence of gradients to file,
