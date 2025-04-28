@@ -22,3 +22,4 @@ Maybe learning rate needs to be scaled with neuron count?
 100 (folder): Trying sequence memory task. I_b=8.0. These are tests, after 1 time step. 
 Random input into computational neuron and separation of input types for sequence and test not yet implemented.
 101 (folder): Trying with I_b=1.5.
+102 (folder): Saving loss plot and state dict.
