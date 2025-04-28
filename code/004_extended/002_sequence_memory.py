@@ -44,8 +44,8 @@ DURATION = DURATION_TO_TEST + IMPULSE_DURATION + TIME_GAP_AFTER_TEST + AVG_OVER_
 LOAD_MODEL = False # "OUT/102/model.pth"
 LEARNING = True
 LEARNING_STEPS = 5000
-LEARNING_RATE = 1e-4 # 1e-3
-EPOCH_STEPS = 5
+LEARNING_RATE = 2e-4 # 1e-3
+EPOCH_STEPS = 1
 MIN_LOSS = 0.1 #0.01
 
 model = ExtendedSTPWrapper(N_a=1000, N_b=1000, P=P, f=f, out_size=P, dt=DT, I_b=I_b).to(device)
@@ -160,8 +160,9 @@ try:
             optimizer.step()
 
             accumulated_loss += loss.item()
-            if i+1 % EPOCH_STEPS == 0:
+            if (i+1) % EPOCH_STEPS == 0:
                 scheduler.step(accumulated_loss)
+                print(f"lr = {scheduler.get_last_lr()}")
                 accumulated_loss = 0
 
 except KeyboardInterrupt:
