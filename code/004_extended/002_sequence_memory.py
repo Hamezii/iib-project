@@ -44,8 +44,10 @@ DURATION = DURATION_TO_TEST + IMPULSE_DURATION + TIME_GAP_AFTER_TEST + AVG_OVER_
 LOAD_MODEL = False # "OUT/102/model.pth"
 LEARNING = True
 LEARNING_STEPS = 5000
-LEARNING_RATE = 2e-4 # 1e-3
-EPOCH_STEPS = 1
+LEARNING_RATE = 5e-2 # 1e-3
+EPOCH_STEPS = 2
+LR_SCHEDULE_FACTOR = 0.25
+LR_MIN = 1e-8
 MIN_LOSS = 0.1 #0.01
 
 model = ExtendedSTPWrapper(N_a=1000, N_b=1000, P=P, f=f, out_size=P, dt=DT, I_b=I_b).to(device)
@@ -59,7 +61,7 @@ dataloader = get_dataloader_from_iterable(data_iter)
 loss_func = nn.CrossEntropyLoss().to(device)
 optimizer = optim.Adam(params=model.parameters(), lr=LEARNING_RATE)
 
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=LR_SCHEDULE_FACTOR, min_lr=LR_MIN)
 accumulated_loss = 0
 
 # Cached data for plotting
