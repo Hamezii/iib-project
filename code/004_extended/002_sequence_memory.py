@@ -46,8 +46,8 @@ LEARNING = True
 LEARNING_STEPS = 5000
 LEARNING_RATE = 5e-4 # 1e-3
 EPOCH_STEPS = 5
-LR_SCHEDULE_FACTOR = 0.25
-LR_MIN = 1e-8
+LR_SCHEDULE_FACTOR = 0.5
+LR_MIN = 5e-7
 MIN_LOSS = 0.1 #0.01
 
 model = ExtendedSTPWrapper(N_a=1000, N_b=1000, P=P, f=f, out_size=P, dt=DT, I_b=I_b).to(device)
