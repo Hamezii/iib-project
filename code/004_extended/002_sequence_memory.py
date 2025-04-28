@@ -53,7 +53,7 @@ MIN_LOSS = 0.1 #0.01
 model = ExtendedSTPWrapper(N_a=1000, N_b=1000, P=P, f=f, out_size=P, dt=DT, I_b=I_b).to(device)
 if LOAD_MODEL:
     model.load_state_dict(torch.load(LOAD_MODEL))
-    # TODO Load dataloader too?
+    # TODO Load optimizer too?
 if not LEARNING:
     model.eval()
 data_iter = data_gen.SequenceMemoryDataGenerator(BATCH_SIZE, INPUT_LENGTH, ALPHABET_SIZE)
@@ -104,7 +104,7 @@ def plot_responses():
     # TODO saving model, don't know if this is functional
     if SAVE_DIR:
         torch.save(model.state_dict(), SAVE_DIR + "model.pth")
-        # TODO save dataloader too?
+        # TODO save optimizer too?
 
 try:
     for i, (inp_seq_id, test, target) in enumerate(dataloader):
