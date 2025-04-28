@@ -55,6 +55,7 @@ def plot_responses():
         inp_string = "".join(str(int(a)) for a in inp_seq[b])
         print(f"Batch {b} input: {inp_seq[b]}")
         plot_impulses(outputs, DT, b, 
+                      y_label="Output",
                       title=f"Input: {inp_string}",
                       save= None if (not SAVE_DIR) else SAVE_DIR + inp_string)
 
