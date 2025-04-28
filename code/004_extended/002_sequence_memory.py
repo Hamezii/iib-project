@@ -21,7 +21,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # Model values
 P = 16
 f = 0.05
-I_b = 8.0
+I_b = 1.5
 
 # Input data
 IMPULSE_STRENGTH = 365.0
