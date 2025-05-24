@@ -24,4 +24,5 @@ Random input into computational neuron and separation of input types for sequenc
 101 (folder): Trying with I_b=1.5.
 102 (folder): Saving loss plot and state dict.
 103 (folder): Use fixed lr scheduling. Ended with 1-1.5 error and lr=2e-6.
+103-2 (folder): Similar loss, ~1.1 error.
 104 (folder): Used much lower learning rate 1e-5. Stopped at step 10 with error 16.8. Interesting responses.
