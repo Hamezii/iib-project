@@ -1,0 +1,67 @@
+PMID- 18339943
+OWN - NLM
+STAT- MEDLINE
+DCOM- 20080326
+LR  - 20131121
+IS  - 1095-9203 (Electronic)
+IS  - 0036-8075 (Linking)
+VI  - 319
+IP  - 5869
+DP  - 2008 Mar 14
+TI  - Synaptic theory of working memory.
+PG  - 1543-6
+LID - 10.1126/science.1150769 [doi]
+AB  - It is usually assumed that enhanced spiking activity in the form of persistent 
+      reverberation for several seconds is the neural correlate of working memory. 
+      Here, we propose that working memory is sustained by calcium-mediated synaptic 
+      facilitation in the recurrent connections of neocortical networks. In this 
+      account, the presynaptic residual calcium is used as a buffer that is loaded, 
+      refreshed, and read out by spiking activity. Because of the long time constants 
+      of calcium kinetics, the refresh rate can be low, resulting in a mechanism that 
+      is metabolically efficient and robust. The duration and stability of working 
+      memory can be regulated by modulating the spontaneous activity in the network.
+FAU - Mongillo, Gianluigi
+AU  - Mongillo G
+AD  - Group for Neural Theory, Département d'Etudes Cognitives, Ecole Normale 
+      Supérieure et Collège-de-France, Paris, France.
+FAU - Barak, Omri
+AU  - Barak O
+FAU - Tsodyks, Misha
+AU  - Tsodyks M
+LA  - eng
+PT  - Journal Article
+PT  - Research Support, Non-U.S. Gov't
+PL  - United States
+TA  - Science
+JT  - Science (New York, N.Y.)
+JID - 0404511
+RN  - 0 (Neurotransmitter Agents)
+RN  - SY7Q814VUP (Calcium)
+SB  - IM
+CIN - Science. 2008 Mar 14;319(5869):1495-6. doi: 10.1126/science.1155914. PMID: 
+      18339929
+MH  - Action Potentials
+MH  - Calcium/*metabolism
+MH  - Humans
+MH  - Mathematics
+MH  - Memory/*physiology
+MH  - *Models, Neurological
+MH  - Nerve Net/physiology
+MH  - Neural Pathways
+MH  - Neuronal Plasticity
+MH  - Neurons/physiology
+MH  - Neurotransmitter Agents/metabolism
+MH  - Prefrontal Cortex/*physiology
+MH  - Presynaptic Terminals/physiology
+MH  - Synapses/*physiology
+MH  - Synaptic Transmission
+EDAT- 2008/03/15 09:00
+MHDA- 2008/03/28 09:00
+CRDT- 2008/03/15 09:00
+PHST- 2008/03/15 09:00 [pubmed]
+PHST- 2008/03/28 09:00 [medline]
+PHST- 2008/03/15 09:00 [entrez]
+AID - 319/5869/1543 [pii]
+AID - 10.1126/science.1150769 [doi]
+PST - ppublish
+SO  - Science. 2008 Mar 14;319(5869):1543-6. doi: 10.1126/science.1150769.
