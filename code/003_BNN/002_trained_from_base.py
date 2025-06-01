@@ -312,10 +312,11 @@ def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, in
             ux_traces[p].append(u_x[cluster_neurons].mean().item())
 
     # Plot results
+    time = torch.arange(seq_len) * model.dt * 1000
     plt.figure()
     for p in range(input_length):
-        plt.plot(ux_traces[p], label=f'Cluster {p+1}')
-    plt.xlabel(f'Time ({model.dt * 1e3}ms steps)')
+        plt.plot(time, ux_traces[p], label=f'Cluster {p+1}')
+    plt.xlabel(f'Time (ms)')
     plt.ylabel('Synaptic Efficacy (u*x)')
     plt.legend()
     plt.show()
@@ -328,11 +329,11 @@ def simulate_paper_with_model(model:STPWrapper, input_strength, duration=2.5, in
         ax = axes[i // 2, i % 2]
         if variable in per_neuron_vars:
             for p in range(input_length):
-                ax.plot(state_traces[variable][p], label=f'Cluster {p+1}')
+                ax.plot(time, state_traces[variable][p], label=f'Cluster {p+1}')
         else:  # Scalar variable
             ax.plot(state_traces[variable], label=variable)
         ax.set_title(titles[i])
-        ax.set_xlabel('Time (0.1ms steps)')
+        ax.set_xlabel('Time (ms)')
         ax.set_ylabel(variable)
         ax.legend()
 
